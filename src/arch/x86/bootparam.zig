@@ -47,6 +47,11 @@ pub const __builtin_inff = @import("std").zig.c_builtins.__builtin_inff;
 pub const __builtin_isnan = @import("std").zig.c_builtins.__builtin_isnan;
 pub const __builtin_isinf = @import("std").zig.c_builtins.__builtin_isinf;
 pub const __builtin_isinf_sign = @import("std").zig.c_builtins.__builtin_isinf_sign;
+pub const __has_builtin = @import("std").zig.c_builtins.__has_builtin;
+pub const __builtin_assume = @import("std").zig.c_builtins.__builtin_assume;
+pub const __builtin_unreachable = @import("std").zig.c_builtins.__builtin_unreachable;
+pub const __builtin_constant_p = @import("std").zig.c_builtins.__builtin_constant_p;
+pub const __builtin_mul_overflow = @import("std").zig.c_builtins.__builtin_mul_overflow;
 pub const __s8 = i8;
 pub const __u8 = u8;
 pub const __s16 = c_short;
@@ -58,7 +63,7 @@ pub const __u64 = c_ulonglong;
 pub const __kernel_fd_set = extern struct {
     fds_bits: [16]c_ulong,
 };
-pub const __kernel_sighandler_t = ?fn (c_int) callconv(.C) void;
+pub const __kernel_sighandler_t = ?*const fn (c_int) callconv(.C) void;
 pub const __kernel_key_t = c_int;
 pub const __kernel_mqd_t = c_int;
 pub const __kernel_old_uid_t = c_ushort;
@@ -102,43 +107,43 @@ pub const __be64 = __u64;
 pub const __sum16 = __u16;
 pub const __wsum = __u32;
 pub const __poll_t = c_uint;
-pub const struct_screen_info = packed struct {
-    orig_x: __u8,
-    orig_y: __u8,
-    ext_mem_k: __u16,
-    orig_video_page: __u16,
-    orig_video_mode: __u8,
-    orig_video_cols: __u8,
-    flags: __u8,
-    unused2: __u8,
-    orig_video_ega_bx: __u16,
-    unused3: __u16,
-    orig_video_lines: __u8,
-    orig_video_isVGA: __u8,
-    orig_video_points: __u16,
-    lfb_width: __u16,
-    lfb_height: __u16,
-    lfb_depth: __u16,
-    lfb_base: __u32,
-    lfb_size: __u32,
-    cl_magic: __u16,
-    cl_offset: __u16,
-    lfb_linelength: __u16,
-    red_size: __u8,
-    red_pos: __u8,
-    green_size: __u8,
-    green_pos: __u8,
-    blue_size: __u8,
-    blue_pos: __u8,
-    rsvd_size: __u8,
-    rsvd_pos: __u8,
-    vesapm_seg: __u16,
-    vesapm_off: __u16,
-    pages: __u16,
-    vesa_attributes: __u16,
-    capabilities: __u32,
-    ext_lfb_base: __u32,
-    _reserved: [2]__u8,
+pub const struct_screen_info = extern struct {
+    orig_x: __u8 align(1),
+    orig_y: __u8 align(1),
+    ext_mem_k: __u16 align(1),
+    orig_video_page: __u16 align(1),
+    orig_video_mode: __u8 align(1),
+    orig_video_cols: __u8 align(1),
+    flags: __u8 align(1),
+    unused2: __u8 align(1),
+    orig_video_ega_bx: __u16 align(1),
+    unused3: __u16 align(1),
+    orig_video_lines: __u8 align(1),
+    orig_video_isVGA: __u8 align(1),
+    orig_video_points: __u16 align(1),
+    lfb_width: __u16 align(1),
+    lfb_height: __u16 align(1),
+    lfb_depth: __u16 align(1),
+    lfb_base: __u32 align(1),
+    lfb_size: __u32 align(1),
+    cl_magic: __u16 align(1),
+    cl_offset: __u16 align(1),
+    lfb_linelength: __u16 align(1),
+    red_size: __u8 align(1),
+    red_pos: __u8 align(1),
+    green_size: __u8 align(1),
+    green_pos: __u8 align(1),
+    blue_size: __u8 align(1),
+    blue_pos: __u8 align(1),
+    rsvd_size: __u8 align(1),
+    rsvd_pos: __u8 align(1),
+    vesapm_seg: __u16 align(1),
+    vesapm_off: __u16 align(1),
+    pages: __u16 align(1),
+    vesa_attributes: __u16 align(1),
+    capabilities: __u32 align(1),
+    ext_lfb_base: __u32 align(1),
+    _reserved: [2]__u8 align(1),
 };
 pub const apm_event_t = c_ushort;
 pub const apm_eventinfo_t = c_ushort;
@@ -153,29 +158,29 @@ pub const struct_apm_bios_info = extern struct {
     cseg_16_len: __u16,
     dseg_len: __u16,
 };
-const struct_unnamed_2 = packed struct {
-    base_address: __u16,
-    reserved1: __u16,
-    reserved2: __u32,
+const struct_unnamed_2 = extern struct {
+    base_address: __u16 align(1),
+    reserved1: __u16 align(1),
+    reserved2: __u32 align(1),
 };
-const struct_unnamed_3 = packed struct {
-    bus: __u8,
-    slot: __u8,
-    function: __u8,
-    channel: __u8,
-    reserved: __u32,
+const struct_unnamed_3 = extern struct {
+    bus: __u8 align(1),
+    slot: __u8 align(1),
+    function: __u8 align(1),
+    channel: __u8 align(1),
+    reserved: __u32 align(1),
 };
-const struct_unnamed_4 = packed struct {
-    reserved: __u64,
+const struct_unnamed_4 = extern struct {
+    reserved: __u64 align(1),
 };
-const struct_unnamed_5 = packed struct {
-    reserved: __u64,
+const struct_unnamed_5 = extern struct {
+    reserved: __u64 align(1),
 };
-const struct_unnamed_6 = packed struct {
-    reserved: __u64,
+const struct_unnamed_6 = extern struct {
+    reserved: __u64 align(1),
 };
-const struct_unnamed_7 = packed struct {
-    reserved: __u64,
+const struct_unnamed_7 = extern struct {
+    reserved: __u64 align(1),
 };
 const union_unnamed_1 = extern union {
     isa: struct_unnamed_2,
@@ -185,58 +190,58 @@ const union_unnamed_1 = extern union {
     htpt: struct_unnamed_6,
     unknown: struct_unnamed_7,
 };
-const struct_unnamed_9 = packed struct {
-    device: __u8,
-    reserved1: __u8,
-    reserved2: __u16,
-    reserved3: __u32,
-    reserved4: __u64,
+const struct_unnamed_9 = extern struct {
+    device: __u8 align(1),
+    reserved1: __u8 align(1),
+    reserved2: __u16 align(1),
+    reserved3: __u32 align(1),
+    reserved4: __u64 align(1),
 };
-const struct_unnamed_10 = packed struct {
-    device: __u8,
-    lun: __u8,
-    reserved1: __u8,
-    reserved2: __u8,
-    reserved3: __u32,
-    reserved4: __u64,
+const struct_unnamed_10 = extern struct {
+    device: __u8 align(1),
+    lun: __u8 align(1),
+    reserved1: __u8 align(1),
+    reserved2: __u8 align(1),
+    reserved3: __u32 align(1),
+    reserved4: __u64 align(1),
 };
-const struct_unnamed_11 = packed struct {
-    id: __u16,
-    lun: __u64,
-    reserved1: __u16,
-    reserved2: __u32,
+const struct_unnamed_11 = extern struct {
+    id: __u16 align(1),
+    lun: __u64 align(1),
+    reserved1: __u16 align(1),
+    reserved2: __u32 align(1),
 };
-const struct_unnamed_12 = packed struct {
-    serial_number: __u64,
-    reserved: __u64,
+const struct_unnamed_12 = extern struct {
+    serial_number: __u64 align(1),
+    reserved: __u64 align(1),
 };
-const struct_unnamed_13 = packed struct {
-    eui: __u64,
-    reserved: __u64,
+const struct_unnamed_13 = extern struct {
+    eui: __u64 align(1),
+    reserved: __u64 align(1),
 };
-const struct_unnamed_14 = packed struct {
-    wwid: __u64,
-    lun: __u64,
+const struct_unnamed_14 = extern struct {
+    wwid: __u64 align(1),
+    lun: __u64 align(1),
 };
-const struct_unnamed_15 = packed struct {
-    identity_tag: __u64,
-    reserved: __u64,
+const struct_unnamed_15 = extern struct {
+    identity_tag: __u64 align(1),
+    reserved: __u64 align(1),
 };
-const struct_unnamed_16 = packed struct {
-    array_number: __u32,
-    reserved1: __u32,
-    reserved2: __u64,
+const struct_unnamed_16 = extern struct {
+    array_number: __u32 align(1),
+    reserved1: __u32 align(1),
+    reserved2: __u64 align(1),
 };
-const struct_unnamed_17 = packed struct {
-    device: __u8,
-    reserved1: __u8,
-    reserved2: __u16,
-    reserved3: __u32,
-    reserved4: __u64,
+const struct_unnamed_17 = extern struct {
+    device: __u8 align(1),
+    reserved1: __u8 align(1),
+    reserved2: __u16 align(1),
+    reserved3: __u32 align(1),
+    reserved4: __u64 align(1),
 };
-const struct_unnamed_18 = packed struct {
-    reserved1: __u64,
-    reserved2: __u64,
+const struct_unnamed_18 = extern struct {
+    reserved1: __u64 align(1),
+    reserved2: __u64 align(1),
 };
 const union_unnamed_8 = extern union {
     ata: struct_unnamed_9,
@@ -250,34 +255,34 @@ const union_unnamed_8 = extern union {
     sata: struct_unnamed_17,
     unknown: struct_unnamed_18,
 };
-pub const struct_edd_device_params = packed struct {
-    length: __u16,
-    info_flags: __u16,
-    num_default_cylinders: __u32,
-    num_default_heads: __u32,
-    sectors_per_track: __u32,
-    number_of_sectors: __u64,
-    bytes_per_sector: __u16,
-    dpte_ptr: __u32,
-    key: __u16,
-    device_path_info_length: __u8,
-    reserved2: __u8,
-    reserved3: __u16,
-    host_bus_type: [4]__u8,
-    interface_type: [8]__u8,
-    interface_path: union_unnamed_1,
-    device_path: union_unnamed_8,
-    reserved4: __u8,
-    checksum: __u8,
+pub const struct_edd_device_params = extern struct {
+    length: __u16 align(1),
+    info_flags: __u16 align(1),
+    num_default_cylinders: __u32 align(1),
+    num_default_heads: __u32 align(1),
+    sectors_per_track: __u32 align(1),
+    number_of_sectors: __u64 align(1),
+    bytes_per_sector: __u16 align(1),
+    dpte_ptr: __u32 align(1),
+    key: __u16 align(1),
+    device_path_info_length: __u8 align(1),
+    reserved2: __u8 align(1),
+    reserved3: __u16 align(1),
+    host_bus_type: [4]__u8 align(1),
+    interface_type: [8]__u8 align(1),
+    interface_path: union_unnamed_1 align(1),
+    device_path: union_unnamed_8 align(1),
+    reserved4: __u8 align(1),
+    checksum: __u8 align(1),
 };
-pub const struct_edd_info = packed struct {
-    device: __u8,
-    version: __u8,
-    interface_support: __u16,
-    legacy_max_cylinder: __u16,
-    legacy_max_head: __u8,
-    legacy_sectors_per_track: __u8,
-    params: struct_edd_device_params,
+pub const struct_edd_info = extern struct {
+    device: __u8 align(1),
+    version: __u8 align(1),
+    interface_support: __u16 align(1),
+    legacy_max_cylinder: __u16 align(1),
+    legacy_max_head: __u8 align(1),
+    legacy_sectors_per_track: __u8 align(1),
+    params: struct_edd_device_params align(1),
 };
 pub const struct_edd = extern struct {
     mbr_signature: [16]c_uint,
@@ -310,56 +315,56 @@ pub const struct_setup_indirect = extern struct {
     len: __u64,
     addr: __u64,
 };
-pub const struct_setup_header = packed struct {
-    setup_sects: __u8,
-    root_flags: __u16,
-    syssize: __u32,
-    ram_size: __u16,
-    vid_mode: __u16,
-    root_dev: __u16,
-    boot_flag: __u16,
-    jump: __u16,
-    header: __u32,
-    version: __u16,
-    realmode_swtch: __u32,
-    start_sys_seg: __u16,
-    kernel_version: __u16,
-    type_of_loader: __u8,
-    loadflags: __u8,
-    setup_move_size: __u16,
-    code32_start: __u32,
-    ramdisk_image: __u32,
-    ramdisk_size: __u32,
-    bootsect_kludge: __u32,
-    heap_end_ptr: __u16,
-    ext_loader_ver: __u8,
-    ext_loader_type: __u8,
-    cmd_line_ptr: __u32,
-    initrd_addr_max: __u32,
-    kernel_alignment: __u32,
-    relocatable_kernel: __u8,
-    min_alignment: __u8,
-    xloadflags: __u16,
-    cmdline_size: __u32,
-    hardware_subarch: __u32,
-    hardware_subarch_data: __u64,
-    payload_offset: __u32,
-    payload_length: __u32,
-    setup_data: __u64,
-    pref_address: __u64,
-    init_size: __u32,
-    handover_offset: __u32,
-    kernel_info_offset: __u32,
+pub const struct_setup_header = extern struct {
+    setup_sects: __u8 align(1),
+    root_flags: __u16 align(1),
+    syssize: __u32 align(1),
+    ram_size: __u16 align(1),
+    vid_mode: __u16 align(1),
+    root_dev: __u16 align(1),
+    boot_flag: __u16 align(1),
+    jump: __u16 align(1),
+    header: __u32 align(1),
+    version: __u16 align(1),
+    realmode_swtch: __u32 align(1),
+    start_sys_seg: __u16 align(1),
+    kernel_version: __u16 align(1),
+    type_of_loader: __u8 align(1),
+    loadflags: __u8 align(1),
+    setup_move_size: __u16 align(1),
+    code32_start: __u32 align(1),
+    ramdisk_image: __u32 align(1),
+    ramdisk_size: __u32 align(1),
+    bootsect_kludge: __u32 align(1),
+    heap_end_ptr: __u16 align(1),
+    ext_loader_ver: __u8 align(1),
+    ext_loader_type: __u8 align(1),
+    cmd_line_ptr: __u32 align(1),
+    initrd_addr_max: __u32 align(1),
+    kernel_alignment: __u32 align(1),
+    relocatable_kernel: __u8 align(1),
+    min_alignment: __u8 align(1),
+    xloadflags: __u16 align(1),
+    cmdline_size: __u32 align(1),
+    hardware_subarch: __u32 align(1),
+    hardware_subarch_data: __u64 align(1),
+    payload_offset: __u32 align(1),
+    payload_length: __u32 align(1),
+    setup_data: __u64 align(1),
+    pref_address: __u64 align(1),
+    init_size: __u32 align(1),
+    handover_offset: __u32 align(1),
+    kernel_info_offset: __u32 align(1),
 };
 pub const struct_sys_desc_table = extern struct {
     length: __u16,
     table: [14]__u8,
 };
-pub const struct_olpc_ofw_header = packed struct {
-    ofw_magic: __u32,
-    ofw_version: __u32,
-    cif_handler: __u32,
-    irq_desc_table: __u32,
+pub const struct_olpc_ofw_header = extern struct {
+    ofw_magic: __u32 align(1),
+    ofw_version: __u32 align(1),
+    cif_handler: __u32 align(1),
+    irq_desc_table: __u32 align(1),
 };
 pub const struct_efi_info = extern struct {
     efi_loader_signature: __u32,
@@ -371,72 +376,67 @@ pub const struct_efi_info = extern struct {
     efi_systab_hi: __u32,
     efi_memmap_hi: __u32,
 };
-pub const struct_boot_e820_entry = packed struct {
-    addr: __u64,
-    size: __u64,
-    type: __u32,
+pub const struct_boot_e820_entry = extern struct {
+    addr: __u64 align(1),
+    size: __u64 align(1),
+    type: __u32 align(1),
 };
-const struct_unnamed_19 = packed struct {
-    version: __u16,
-    compatible_version: __u16,
+const struct_unnamed_19 = extern struct {
+    version: __u16 align(1),
+    compatible_version: __u16 align(1),
 };
-const struct_unnamed_20 = packed struct {
-    pm_timer_address: __u16,
-    num_cpus: __u16,
-    pci_mmconfig_base: __u64,
-    tsc_khz: __u32,
-    apic_khz: __u32,
-    standard_ioapic: __u8,
-    cpu_ids: [255]__u8,
+const struct_unnamed_20 = extern struct {
+    pm_timer_address: __u16 align(1),
+    num_cpus: __u16 align(1),
+    pci_mmconfig_base: __u64 align(1),
+    tsc_khz: __u32 align(1),
+    apic_khz: __u32 align(1),
+    standard_ioapic: __u8 align(1),
+    cpu_ids: [255]__u8 align(1),
 };
-const struct_unnamed_21 = packed struct {
-    flags: __u32,
+const struct_unnamed_21 = extern struct {
+    flags: __u32 align(1),
 };
-pub const struct_jailhouse_setup_data = packed struct {
-    hdr: struct_unnamed_19,
-    v1: struct_unnamed_20,
-    v2: struct_unnamed_21,
+pub const struct_jailhouse_setup_data = extern struct {
+    hdr: struct_unnamed_19 align(1),
+    v1: struct_unnamed_20 align(1),
+    v2: struct_unnamed_21 align(1),
 };
-pub const struct_boot_params = packed struct {
-    screen_info: struct_screen_info,
-    apm_bios_info: struct_apm_bios_info,
-    _pad2: [4]__u8,
-    tboot_addr: __u64,
-    ist_info: struct_ist_info,
-    acpi_rsdp_addr: __u64,
-    _pad3: [8]__u8,
-    hd0_info: [16]__u8,
-    hd1_info: [16]__u8,
-    sys_desc_table: struct_sys_desc_table,
-    olpc_ofw_header: struct_olpc_ofw_header,
-    ext_ramdisk_image: __u32,
-    ext_ramdisk_size: __u32,
-    ext_cmd_line_ptr: __u32,
-    _pad4: [116]__u8,
-    edid_info: struct_edid_info,
-    efi_info: struct_efi_info,
-    alt_mem_k: __u32,
-    scratch: __u32,
-    e820_entries: __u8,
-    eddbuf_entries: __u8,
-    edd_mbr_sig_buf_entries: __u8,
-    kbd_status: __u8,
-    secure_boot: __u8,
-    _pad5: [2]__u8,
-    sentinel: __u8,
-    _pad6: [1]__u8,
-    hdr: struct_setup_header,
-    _pad7: [36]__u8,
-    edd_mbr_sig_buffer: [16]__u32,
-    e820_table: [128]struct_boot_e820_entry,
-    _pad8: [48]__u8,
-    eddbuf0: struct_edd_info,
-    eddbuf1: struct_edd_info,
-    eddbuf2: struct_edd_info,
-    eddbuf3: struct_edd_info,
-    eddbuf4: struct_edd_info,
-    eddbuf5: struct_edd_info,
-    _pad9: [276]__u8,
+pub const struct_boot_params = extern struct {
+    screen_info: struct_screen_info align(1),
+    apm_bios_info: struct_apm_bios_info align(1),
+    _pad2: [4]__u8 align(1),
+    tboot_addr: __u64 align(1),
+    ist_info: struct_ist_info align(1),
+    acpi_rsdp_addr: __u64 align(1),
+    _pad3: [8]__u8 align(1),
+    hd0_info: [16]__u8 align(1),
+    hd1_info: [16]__u8 align(1),
+    sys_desc_table: struct_sys_desc_table align(1),
+    olpc_ofw_header: struct_olpc_ofw_header align(1),
+    ext_ramdisk_image: __u32 align(1),
+    ext_ramdisk_size: __u32 align(1),
+    ext_cmd_line_ptr: __u32 align(1),
+    _pad4: [116]__u8 align(1),
+    edid_info: struct_edid_info align(1),
+    efi_info: struct_efi_info align(1),
+    alt_mem_k: __u32 align(1),
+    scratch: __u32 align(1),
+    e820_entries: __u8 align(1),
+    eddbuf_entries: __u8 align(1),
+    edd_mbr_sig_buf_entries: __u8 align(1),
+    kbd_status: __u8 align(1),
+    secure_boot: __u8 align(1),
+    _pad5: [2]__u8 align(1),
+    sentinel: __u8 align(1),
+    _pad6: [1]__u8 align(1),
+    hdr: struct_setup_header align(1),
+    _pad7: [36]__u8 align(1),
+    edd_mbr_sig_buffer: [16]__u32 align(1),
+    e820_table: [128]struct_boot_e820_entry align(1),
+    _pad8: [48]__u8 align(1),
+    eddbuf: [6]struct_edd_info align(1),
+    _pad9: [276]__u8 align(1),
 };
 pub const X86_SUBARCH_PC: c_int = 0;
 pub const X86_SUBARCH_LGUEST: c_int = 1;
@@ -445,23 +445,27 @@ pub const X86_SUBARCH_INTEL_MID: c_int = 3;
 pub const X86_SUBARCH_CE4100: c_int = 4;
 pub const X86_NR_SUBARCHS: c_int = 5;
 pub const enum_x86_hardware_subarch = c_uint;
-pub const __INTMAX_C_SUFFIX__ = @compileError("unable to translate macro: undefined identifier `L`"); // (no file):67:9
-pub const __UINTMAX_C_SUFFIX__ = @compileError("unable to translate macro: undefined identifier `UL`"); // (no file):73:9
-pub const __INT64_C_SUFFIX__ = @compileError("unable to translate macro: undefined identifier `L`"); // (no file):164:9
-pub const __UINT32_C_SUFFIX__ = @compileError("unable to translate macro: undefined identifier `U`"); // (no file):186:9
-pub const __UINT64_C_SUFFIX__ = @compileError("unable to translate macro: undefined identifier `UL`"); // (no file):194:9
-pub const __seg_gs = @compileError("unable to translate macro: undefined identifier `__attribute__`"); // (no file):312:9
-pub const __seg_fs = @compileError("unable to translate macro: undefined identifier `__attribute__`"); // (no file):313:9
+pub const __INTMAX_C_SUFFIX__ = @compileError("unable to translate macro: undefined identifier `L`"); // (no file):80:9
+pub const __UINTMAX_C_SUFFIX__ = @compileError("unable to translate macro: undefined identifier `UL`"); // (no file):86:9
+pub const __FLT16_DENORM_MIN__ = @compileError("unable to translate C expr: unexpected token 'IntegerLiteral'"); // (no file):109:9
+pub const __FLT16_EPSILON__ = @compileError("unable to translate C expr: unexpected token 'IntegerLiteral'"); // (no file):113:9
+pub const __FLT16_MAX__ = @compileError("unable to translate C expr: unexpected token 'IntegerLiteral'"); // (no file):119:9
+pub const __FLT16_MIN__ = @compileError("unable to translate C expr: unexpected token 'IntegerLiteral'"); // (no file):122:9
+pub const __INT64_C_SUFFIX__ = @compileError("unable to translate macro: undefined identifier `L`"); // (no file):183:9
+pub const __UINT32_C_SUFFIX__ = @compileError("unable to translate macro: undefined identifier `U`"); // (no file):205:9
+pub const __UINT64_C_SUFFIX__ = @compileError("unable to translate macro: undefined identifier `UL`"); // (no file):213:9
+pub const __seg_gs = @compileError("unable to translate macro: undefined identifier `__attribute__`"); // (no file):343:9
+pub const __seg_fs = @compileError("unable to translate macro: undefined identifier `__attribute__`"); // (no file):344:9
 pub const __always_inline = @compileError("unable to translate macro: undefined identifier `__inline__`"); // /usr/include/linux/stddef.h:5:9
 pub const __aligned_u64 = @compileError("unable to translate macro: undefined identifier `__attribute__`"); // /usr/include/linux/types.h:43:9
 pub const __aligned_be64 = @compileError("unable to translate macro: undefined identifier `__attribute__`"); // /usr/include/linux/types.h:44:9
 pub const __aligned_le64 = @compileError("unable to translate macro: undefined identifier `__attribute__`"); // /usr/include/linux/types.h:45:9
 pub const __llvm__ = @as(c_int, 1);
 pub const __clang__ = @as(c_int, 1);
-pub const __clang_major__ = @as(c_int, 13);
+pub const __clang_major__ = @as(c_int, 15);
 pub const __clang_minor__ = @as(c_int, 0);
 pub const __clang_patchlevel__ = @as(c_int, 0);
-pub const __clang_version__ = "13.0.0 (git@github.com:ziglang/zig-bootstrap.git 4cced909c6506a6eb96e55ba5c31f883fe8208a1)";
+pub const __clang_version__ = "15.0.0 (git@github.com:ziglang/zig-bootstrap.git 9be8396b715b10f64d8a94b2d0d9acb77126d8ca)";
 pub const __GNUC__ = @as(c_int, 4);
 pub const __GNUC_MINOR__ = @as(c_int, 2);
 pub const __GNUC_PATCHLEVEL__ = @as(c_int, 1);
@@ -478,12 +482,11 @@ pub const __OPENCL_MEMORY_SCOPE_DEVICE = @as(c_int, 2);
 pub const __OPENCL_MEMORY_SCOPE_ALL_SVM_DEVICES = @as(c_int, 3);
 pub const __OPENCL_MEMORY_SCOPE_SUB_GROUP = @as(c_int, 4);
 pub const __PRAGMA_REDEFINE_EXTNAME = @as(c_int, 1);
-pub const __VERSION__ = "Clang 13.0.0 (git@github.com:ziglang/zig-bootstrap.git 4cced909c6506a6eb96e55ba5c31f883fe8208a1)";
+pub const __VERSION__ = "Clang 15.0.0 (git@github.com:ziglang/zig-bootstrap.git 9be8396b715b10f64d8a94b2d0d9acb77126d8ca)";
 pub const __OBJC_BOOL_IS_BOOL = @as(c_int, 0);
 pub const __CONSTANT_CFSTRINGS__ = @as(c_int, 1);
 pub const __clang_literal_encoding__ = "UTF-8";
 pub const __clang_wide_literal_encoding__ = "UTF-32";
-pub const __OPTIMIZE__ = @as(c_int, 1);
 pub const __ORDER_LITTLE_ENDIAN__ = @as(c_int, 1234);
 pub const __ORDER_BIG_ENDIAN__ = @as(c_int, 4321);
 pub const __ORDER_PDP_ENDIAN__ = @as(c_int, 3412);
@@ -492,19 +495,33 @@ pub const __LITTLE_ENDIAN__ = @as(c_int, 1);
 pub const _LP64 = @as(c_int, 1);
 pub const __LP64__ = @as(c_int, 1);
 pub const __CHAR_BIT__ = @as(c_int, 8);
+pub const __BOOL_WIDTH__ = @as(c_int, 8);
+pub const __SHRT_WIDTH__ = @as(c_int, 16);
+pub const __INT_WIDTH__ = @as(c_int, 32);
+pub const __LONG_WIDTH__ = @as(c_int, 64);
+pub const __LLONG_WIDTH__ = @as(c_int, 64);
+pub const __BITINT_MAXWIDTH__ = @as(c_int, 128);
 pub const __SCHAR_MAX__ = @as(c_int, 127);
 pub const __SHRT_MAX__ = @as(c_int, 32767);
 pub const __INT_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_int, 2147483647, .decimal);
 pub const __LONG_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_long, 9223372036854775807, .decimal);
 pub const __LONG_LONG_MAX__ = @as(c_longlong, 9223372036854775807);
 pub const __WCHAR_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_int, 2147483647, .decimal);
+pub const __WCHAR_WIDTH__ = @as(c_int, 32);
 pub const __WINT_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_uint, 4294967295, .decimal);
+pub const __WINT_WIDTH__ = @as(c_int, 32);
 pub const __INTMAX_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_long, 9223372036854775807, .decimal);
+pub const __INTMAX_WIDTH__ = @as(c_int, 64);
 pub const __SIZE_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_ulong, 18446744073709551615, .decimal);
+pub const __SIZE_WIDTH__ = @as(c_int, 64);
 pub const __UINTMAX_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_ulong, 18446744073709551615, .decimal);
+pub const __UINTMAX_WIDTH__ = @as(c_int, 64);
 pub const __PTRDIFF_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_long, 9223372036854775807, .decimal);
+pub const __PTRDIFF_WIDTH__ = @as(c_int, 64);
 pub const __INTPTR_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_long, 9223372036854775807, .decimal);
+pub const __INTPTR_WIDTH__ = @as(c_int, 64);
 pub const __UINTPTR_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_ulong, 18446744073709551615, .decimal);
+pub const __UINTPTR_WIDTH__ = @as(c_int, 64);
 pub const __SIZEOF_DOUBLE__ = @as(c_int, 8);
 pub const __SIZEOF_FLOAT__ = @as(c_int, 4);
 pub const __SIZEOF_INT__ = @as(c_int, 4);
@@ -526,36 +543,38 @@ pub const __UINTMAX_FMTo__ = "lo";
 pub const __UINTMAX_FMTu__ = "lu";
 pub const __UINTMAX_FMTx__ = "lx";
 pub const __UINTMAX_FMTX__ = "lX";
-pub const __INTMAX_WIDTH__ = @as(c_int, 64);
 pub const __PTRDIFF_TYPE__ = c_long;
 pub const __PTRDIFF_FMTd__ = "ld";
 pub const __PTRDIFF_FMTi__ = "li";
-pub const __PTRDIFF_WIDTH__ = @as(c_int, 64);
 pub const __INTPTR_TYPE__ = c_long;
 pub const __INTPTR_FMTd__ = "ld";
 pub const __INTPTR_FMTi__ = "li";
-pub const __INTPTR_WIDTH__ = @as(c_int, 64);
 pub const __SIZE_TYPE__ = c_ulong;
 pub const __SIZE_FMTo__ = "lo";
 pub const __SIZE_FMTu__ = "lu";
 pub const __SIZE_FMTx__ = "lx";
 pub const __SIZE_FMTX__ = "lX";
-pub const __SIZE_WIDTH__ = @as(c_int, 64);
 pub const __WCHAR_TYPE__ = c_int;
-pub const __WCHAR_WIDTH__ = @as(c_int, 32);
 pub const __WINT_TYPE__ = c_uint;
-pub const __WINT_WIDTH__ = @as(c_int, 32);
-pub const __SIG_ATOMIC_WIDTH__ = @as(c_int, 32);
 pub const __SIG_ATOMIC_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_int, 2147483647, .decimal);
+pub const __SIG_ATOMIC_WIDTH__ = @as(c_int, 32);
 pub const __CHAR16_TYPE__ = c_ushort;
 pub const __CHAR32_TYPE__ = c_uint;
-pub const __UINTMAX_WIDTH__ = @as(c_int, 64);
 pub const __UINTPTR_TYPE__ = c_ulong;
 pub const __UINTPTR_FMTo__ = "lo";
 pub const __UINTPTR_FMTu__ = "lu";
 pub const __UINTPTR_FMTx__ = "lx";
 pub const __UINTPTR_FMTX__ = "lX";
-pub const __UINTPTR_WIDTH__ = @as(c_int, 64);
+pub const __FLT16_HAS_DENORM__ = @as(c_int, 1);
+pub const __FLT16_DIG__ = @as(c_int, 3);
+pub const __FLT16_DECIMAL_DIG__ = @as(c_int, 5);
+pub const __FLT16_HAS_INFINITY__ = @as(c_int, 1);
+pub const __FLT16_HAS_QUIET_NAN__ = @as(c_int, 1);
+pub const __FLT16_MANT_DIG__ = @as(c_int, 11);
+pub const __FLT16_MAX_10_EXP__ = @as(c_int, 4);
+pub const __FLT16_MAX_EXP__ = @as(c_int, 16);
+pub const __FLT16_MIN_10_EXP__ = -@as(c_int, 4);
+pub const __FLT16_MIN_EXP__ = -@as(c_int, 13);
 pub const __FLT_DENORM_MIN__ = @as(f32, 1.40129846e-45);
 pub const __FLT_HAS_DENORM__ = @as(c_int, 1);
 pub const __FLT_DIG__ = @as(c_int, 6);
@@ -648,6 +667,7 @@ pub const __UINT64_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_
 pub const __INT64_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_long, 9223372036854775807, .decimal);
 pub const __INT_LEAST8_TYPE__ = i8;
 pub const __INT_LEAST8_MAX__ = @as(c_int, 127);
+pub const __INT_LEAST8_WIDTH__ = @as(c_int, 8);
 pub const __INT_LEAST8_FMTd__ = "hhd";
 pub const __INT_LEAST8_FMTi__ = "hhi";
 pub const __UINT_LEAST8_TYPE__ = u8;
@@ -658,6 +678,7 @@ pub const __UINT_LEAST8_FMTx__ = "hhx";
 pub const __UINT_LEAST8_FMTX__ = "hhX";
 pub const __INT_LEAST16_TYPE__ = c_short;
 pub const __INT_LEAST16_MAX__ = @as(c_int, 32767);
+pub const __INT_LEAST16_WIDTH__ = @as(c_int, 16);
 pub const __INT_LEAST16_FMTd__ = "hd";
 pub const __INT_LEAST16_FMTi__ = "hi";
 pub const __UINT_LEAST16_TYPE__ = c_ushort;
@@ -668,6 +689,7 @@ pub const __UINT_LEAST16_FMTx__ = "hx";
 pub const __UINT_LEAST16_FMTX__ = "hX";
 pub const __INT_LEAST32_TYPE__ = c_int;
 pub const __INT_LEAST32_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_int, 2147483647, .decimal);
+pub const __INT_LEAST32_WIDTH__ = @as(c_int, 32);
 pub const __INT_LEAST32_FMTd__ = "d";
 pub const __INT_LEAST32_FMTi__ = "i";
 pub const __UINT_LEAST32_TYPE__ = c_uint;
@@ -678,6 +700,7 @@ pub const __UINT_LEAST32_FMTx__ = "x";
 pub const __UINT_LEAST32_FMTX__ = "X";
 pub const __INT_LEAST64_TYPE__ = c_long;
 pub const __INT_LEAST64_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_long, 9223372036854775807, .decimal);
+pub const __INT_LEAST64_WIDTH__ = @as(c_int, 64);
 pub const __INT_LEAST64_FMTd__ = "ld";
 pub const __INT_LEAST64_FMTi__ = "li";
 pub const __UINT_LEAST64_TYPE__ = c_ulong;
@@ -688,6 +711,7 @@ pub const __UINT_LEAST64_FMTx__ = "lx";
 pub const __UINT_LEAST64_FMTX__ = "lX";
 pub const __INT_FAST8_TYPE__ = i8;
 pub const __INT_FAST8_MAX__ = @as(c_int, 127);
+pub const __INT_FAST8_WIDTH__ = @as(c_int, 8);
 pub const __INT_FAST8_FMTd__ = "hhd";
 pub const __INT_FAST8_FMTi__ = "hhi";
 pub const __UINT_FAST8_TYPE__ = u8;
@@ -698,6 +722,7 @@ pub const __UINT_FAST8_FMTx__ = "hhx";
 pub const __UINT_FAST8_FMTX__ = "hhX";
 pub const __INT_FAST16_TYPE__ = c_short;
 pub const __INT_FAST16_MAX__ = @as(c_int, 32767);
+pub const __INT_FAST16_WIDTH__ = @as(c_int, 16);
 pub const __INT_FAST16_FMTd__ = "hd";
 pub const __INT_FAST16_FMTi__ = "hi";
 pub const __UINT_FAST16_TYPE__ = c_ushort;
@@ -708,6 +733,7 @@ pub const __UINT_FAST16_FMTx__ = "hx";
 pub const __UINT_FAST16_FMTX__ = "hX";
 pub const __INT_FAST32_TYPE__ = c_int;
 pub const __INT_FAST32_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_int, 2147483647, .decimal);
+pub const __INT_FAST32_WIDTH__ = @as(c_int, 32);
 pub const __INT_FAST32_FMTd__ = "d";
 pub const __INT_FAST32_FMTi__ = "i";
 pub const __UINT_FAST32_TYPE__ = c_uint;
@@ -718,6 +744,7 @@ pub const __UINT_FAST32_FMTx__ = "x";
 pub const __UINT_FAST32_FMTX__ = "X";
 pub const __INT_FAST64_TYPE__ = c_long;
 pub const __INT_FAST64_MAX__ = @import("std").zig.c_translation.promoteIntLiteral(c_long, 9223372036854775807, .decimal);
+pub const __INT_FAST64_WIDTH__ = @as(c_int, 64);
 pub const __INT_FAST64_FMTd__ = "ld";
 pub const __INT_FAST64_FMTi__ = "li";
 pub const __UINT_FAST64_TYPE__ = c_ulong;
@@ -750,7 +777,11 @@ pub const __GCC_ATOMIC_INT_LOCK_FREE = @as(c_int, 2);
 pub const __GCC_ATOMIC_LONG_LOCK_FREE = @as(c_int, 2);
 pub const __GCC_ATOMIC_LLONG_LOCK_FREE = @as(c_int, 2);
 pub const __GCC_ATOMIC_POINTER_LOCK_FREE = @as(c_int, 2);
-pub const __FLT_EVAL_METHOD__ = @as(c_int, 0);
+pub const __NO_INLINE__ = @as(c_int, 1);
+pub const __PIC__ = @as(c_int, 2);
+pub const __pic__ = @as(c_int, 2);
+pub const __PIE__ = @as(c_int, 2);
+pub const __pie__ = @as(c_int, 2);
 pub const __FLT_RADIX__ = @as(c_int, 2);
 pub const __DECIMAL_DIG__ = __LDBL_DECIMAL_DIG__;
 pub const __GCC_ASM_FLAG_OUTPUTS__ = @as(c_int, 1);
@@ -785,11 +816,8 @@ pub const __F16C__ = @as(c_int, 1);
 pub const __FXSR__ = @as(c_int, 1);
 pub const __XSAVE__ = @as(c_int, 1);
 pub const __XSAVEOPT__ = @as(c_int, 1);
-pub const __XSAVEC__ = @as(c_int, 1);
-pub const __XSAVES__ = @as(c_int, 1);
-pub const __CLFLUSHOPT__ = @as(c_int, 1);
-pub const __SGX__ = @as(c_int, 1);
 pub const __INVPCID__ = @as(c_int, 1);
+pub const __CRC32__ = @as(c_int, 1);
 pub const __AVX2__ = @as(c_int, 1);
 pub const __AVX__ = @as(c_int, 1);
 pub const __SSE4_2__ = @as(c_int, 1);
@@ -965,7 +993,7 @@ pub inline fn _IOC(dir: anytype, @"type": anytype, nr: anytype, size: anytype) @
     return (((dir << _IOC_DIRSHIFT) | (@"type" << _IOC_TYPESHIFT)) | (nr << _IOC_NRSHIFT)) | (size << _IOC_SIZESHIFT);
 }
 pub inline fn _IOC_TYPECHECK(t: anytype) @TypeOf(@import("std").zig.c_translation.sizeof(t)) {
-    _ = t;
+    _ = @TypeOf(t);
     return @import("std").zig.c_translation.sizeof(t);
 }
 pub inline fn _IO(@"type": anytype, nr: anytype) @TypeOf(_IOC(_IOC_NONE, @"type", nr, @as(c_int, 0))) {
@@ -981,15 +1009,15 @@ pub inline fn _IOWR(@"type": anytype, nr: anytype, size: anytype) @TypeOf(_IOC(_
     return _IOC(_IOC_READ | _IOC_WRITE, @"type", nr, _IOC_TYPECHECK(size));
 }
 pub inline fn _IOR_BAD(@"type": anytype, nr: anytype, size: anytype) @TypeOf(_IOC(_IOC_READ, @"type", nr, @import("std").zig.c_translation.sizeof(size))) {
-    _ = size;
+    _ = @TypeOf(size);
     return _IOC(_IOC_READ, @"type", nr, @import("std").zig.c_translation.sizeof(size));
 }
 pub inline fn _IOW_BAD(@"type": anytype, nr: anytype, size: anytype) @TypeOf(_IOC(_IOC_WRITE, @"type", nr, @import("std").zig.c_translation.sizeof(size))) {
-    _ = size;
+    _ = @TypeOf(size);
     return _IOC(_IOC_WRITE, @"type", nr, @import("std").zig.c_translation.sizeof(size));
 }
 pub inline fn _IOWR_BAD(@"type": anytype, nr: anytype, size: anytype) @TypeOf(_IOC(_IOC_READ | _IOC_WRITE, @"type", nr, @import("std").zig.c_translation.sizeof(size))) {
-    _ = size;
+    _ = @TypeOf(size);
     return _IOC(_IOC_READ | _IOC_WRITE, @"type", nr, @import("std").zig.c_translation.sizeof(size));
 }
 pub inline fn _IOC_DIR(nr: anytype) @TypeOf((nr >> _IOC_DIRSHIFT) & _IOC_DIRMASK) {

@@ -360,8 +360,10 @@ fn setup_regs(vcpu: os.fd_t) !void {
 var history_ins: [20]u64 = undefined;
 var pos: u64 = 0;
 
-pub fn record_ins(vcpu: os.fd_t, ip: ?u64) !void {
-    const rip = ip orelse blk: {
+pub fn record_ins(vcpu: os.fd_t, p: ?*const c.kvm_debug_exit_arch) !void {
+    const rip = if (p) |ctx|
+        ctx.pc
+    else blk: {
         var regs: c.kvm_regs = undefined;
         const ret = ioctl(vcpu, c.KVM_GET_REGS, @ptrToInt(&regs));
         if (os.errno(ret) != .SUCCESS) {

@@ -17,10 +17,10 @@ var handlers: usize = 0;
 const H = struct {
     start: u64,
     end: u64,
-    handle: fn (u64, io.Operation, u32, []u8) anyerror!void,
+    handle: *const fn (u64, io.Operation, u32, []u8) anyerror!void,
 };
 
-pub fn register_handler(start: u64, count: u64, h: fn (u64, io.Operation, u32, []u8) anyerror!void) !void {
+pub fn register_handler(start: u64, count: u64, h: *const fn (u64, io.Operation, u32, []u8) anyerror!void) !void {
     if (handlers == limit) return error.NO_SPACE;
     handler_array[handlers] = .{
         .start = start,

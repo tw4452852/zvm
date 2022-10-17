@@ -10,16 +10,16 @@ var handle: std.Thread = undefined;
 var stop = false;
 
 pub fn startCapture() !void {
-    tty = try fs.cwd().openFile("/dev/tty", .{ .read = true, .write = true });
+    tty = try fs.cwd().openFile("/dev/tty", .{ .mode = .read_write });
     original_termios = try os.tcgetattr(tty.handle);
 
     var raw = original_termios;
     raw.lflag &= ~@as(
-        os.system.tcflag_t,
-        os.system.ECHO | os.system.ICANON,
+        os.linux.tcflag_t,
+        os.linux.ECHO | os.linux.ICANON,
     );
-    raw.cc[os.system.V.TIME] = 1;
-    raw.cc[os.system.V.MIN] = 1;
+    raw.cc[os.linux.V.TIME] = 1;
+    raw.cc[os.linux.V.MIN] = 1;
     try os.tcsetattr(tty.handle, .FLUSH, raw);
 
     handle = try Thread.spawn(.{}, captureStdin, .{tty});

@@ -50,7 +50,7 @@ pub fn createAndStartCpus(num_cores: usize) !void {
 
 fn runVCPU(vcpu: os.fd_t) !void {
     const run_ptr = try kvm.getRun(vcpu);
-    const run = @ptrCast(*volatile c.kvm_run, run_ptr.ptr);
+    const run = @ptrCast(*c.kvm_run, run_ptr.ptr);
 
     while (true) {
         const ret = ioctl(vcpu, c.KVM_RUN, 0);
@@ -78,7 +78,7 @@ fn runVCPU(vcpu: os.fd_t) !void {
                 return;
             },
             .debug => {
-                try arch.record_ins(vcpu, ctx.debug.arch.pc);
+                try arch.record_ins(vcpu, &ctx.debug.arch);
             },
             .unknown => continue,
             else => {

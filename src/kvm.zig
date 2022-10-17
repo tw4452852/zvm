@@ -47,7 +47,7 @@ pub const ExitReason = enum {
 
 pub fn open() !void {
     f = try fs.cwd().openFile("/dev/kvm", .{
-        .write = true,
+        .mode = .read_write,
     });
 
     const version = ioctl(f.handle, c.KVM_GET_API_VERSION, 0);
@@ -104,7 +104,7 @@ pub fn createVCPU(i: usize) !os.fd_t {
     return @intCast(os.fd_t, ret);
 }
 
-pub fn fixCpuids(vcpu: os.fd_t, i: usize, cb: fn (usize, *c.kvm_cpuid_entry2) void) !void {
+pub fn fixCpuids(vcpu: os.fd_t, i: usize, cb: *const fn (usize, *c.kvm_cpuid_entry2) void) !void {
     const _CPUID = extern struct {
         nent: u32,
         padding: u32,

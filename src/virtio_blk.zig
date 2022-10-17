@@ -33,7 +33,7 @@ pub fn init(alloc: std.mem.Allocator, path: []const u8, cmdline: *[]const u8) !v
 
 fn blkio(q: *virtio.Q) !void {
     const ram = kvm.getMem();
-    const f = try fs.cwd().openFile(disk_file_path, .{ .read = true, .write = true });
+    const f = try fs.cwd().openFile(disk_file_path, .{ .mode = .read_write });
     defer f.close();
 
     while (true) {
@@ -198,7 +198,7 @@ fn mmio_rw(offset: u64, op: io.Operation, len: u32, data: []u8) anyerror!void {
             std.debug.assert(len == 1);
             switch (op) {
                 .Read => data[0] = (ptr + off)[0],
-                .Write => (ptr + off).* = data[0],
+                .Write => (ptr + off)[0] = data[0],
             }
         } else {
             log.warn("unhandle {} 0x{x}, len[{}], 0x{x}\n", .{ op, offset, len, mem.readIntLittle(u32, data[0..4]) });
