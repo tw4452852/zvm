@@ -117,7 +117,7 @@ pub fn fixCpuids(vcpu: os.fd_t, i: usize, cb: *const fn (usize, *c.kvm_cpuid_ent
         return error.CPUID;
     }
 
-    for (cpuid.entries) |*entry| {
+    for (&cpuid.entries) |*entry| {
         cb(i, entry);
     }
 

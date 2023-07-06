@@ -106,7 +106,7 @@ var irq_status: u32 = 0;
 fn mmio_rw(offset: u64, op: io.Operation, len: u32, data: []u8) anyerror!void {
     switch (offset) {
         c.VIRTIO_MMIO_MAGIC_VALUE => if (op == .Read) {
-            @memcpy(data.ptr, "virt", len);
+            @memcpy(data.ptr, "virt");
         } else unreachable,
         c.VIRTIO_MMIO_VERSION => if (op == .Read) {
             mem.writeIntLittle(u32, data[0..4], 1);

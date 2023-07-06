@@ -20,7 +20,7 @@ pub fn createAndStartCpus(num_cores: usize) !void {
     var handle0: Thread = undefined;
     assert(num_cores < root.MAX_CPUS);
 
-    for (cpus[0..num_cores]) |*cpu, i| {
+    for (cpus[0..num_cores], 0..) |*cpu, i| {
         // create vcpu
         const vcpu = try kvm.createVCPU(i);
 
@@ -40,7 +40,7 @@ pub fn createAndStartCpus(num_cores: usize) !void {
         cpu.* = vcpu;
     }
 
-    for (cpus[0..num_cores]) |cpu, i| {
+    for (cpus[0..num_cores], 0..) |cpu, i| {
         const h = try Thread.spawn(.{}, runVCPU, .{cpu});
         try h.setName(try fmt.bufPrint(buf[0..], "vcpu-{}", .{i}));
         if (i == 0) handle0 = h;

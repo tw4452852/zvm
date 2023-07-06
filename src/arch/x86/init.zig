@@ -151,7 +151,7 @@ pub fn load_kernel(kernel_path: []const u8, cmdline: []const u8, initrd_path: ?[
     // copy setup parts to 0x10000 (64K)
     const setup_addr = 0x10_000;
     const setup_size = @as(u32, ((if (hdr.setup_sects == 0) 4 else hdr.setup_sects) + 1)) * 512;
-    @memcpy(ram.ptr + setup_addr, data.ptr, setup_size);
+    @memcpy(ram[setup_addr .. setup_addr + setup_size], data[0..setup_size]);
 
     // copy the reset(vmlinux.bin) to 0x100000 (1M)
     const kernel_addr = 0x100_000;
@@ -160,12 +160,12 @@ pub fn load_kernel(kernel_path: []const u8, cmdline: []const u8, initrd_path: ?[
         log.err("not enough memory for kernel", .{});
         return error.KERNEL;
     }
-    @memcpy(ram.ptr + kernel_addr, data.ptr + setup_size, kernel_size);
+    @memcpy(ram[kernel_addr .. kernel_addr + kernel_size], data[setup_size .. setup_size + kernel_size]);
 
     // copy cmdline to 0x20000 (128K)
     const cmd_addr = 0x20_000;
-    @memset(ram.ptr + cmd_addr, 0, hdr.cmdline_size);
-    @memcpy(ram.ptr + cmd_addr, cmdline.ptr, cmdline.len);
+    @memset(ram[cmd_addr .. cmd_addr + hdr.cmdline_size], 0);
+    @memcpy(ram[cmd_addr .. cmd_addr + cmdline.len], cmdline[0..cmdline.len]);
 
     // fill in some necessary fields in setup header
     hdr = @ptrCast(*bootparam.setup_header, ram.ptr + setup_addr + 0x1f1);
@@ -197,7 +197,7 @@ pub fn load_kernel(kernel_path: []const u8, cmdline: []const u8, initrd_path: ?[
         log.info("initrd loaded to 0x{X}", .{initrd_addr});
         hdr.ramdisk_image = @truncate(u32, initrd_addr);
         hdr.ramdisk_size = @truncate(u32, initrd_size);
-        @memcpy(ram.ptr + initrd_addr, initrd_data.ptr, initrd_size);
+        @memcpy(ram[initrd_addr .. initrd_addr + initrd_size], initrd_data[0..initrd_size]);
     }
 }
 
