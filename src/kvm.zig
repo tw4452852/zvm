@@ -72,7 +72,7 @@ pub fn createVM(ram_size: usize) !void {
         log.err("failed to create vm: {}", .{os.errno(ret)});
         return error.CREATE_VM;
     }
-    vm = @intCast(os.fd_t, ret);
+    vm = @intCast(ret);
 
     const real_size = if (ram_size < mmio.GAP_START) ram_size else ram_size + mmio.GAP_SIZE;
     mem = try os.mmap(null, real_size, c.PROT_READ | c.PROT_WRITE, c.MAP_PRIVATE | c.MAP_ANONYMOUS | c.MAP_NORESERVE, -1, 0);
@@ -80,10 +80,10 @@ pub fn createVM(ram_size: usize) !void {
         .slot = 0,
         .guest_phys_addr = 0,
         .memory_size = real_size,
-        .userspace_addr = @ptrToInt(mem.ptr),
+        .userspace_addr = @intFromPtr(mem.ptr),
         .flags = 0,
     };
-    ret = ioctl(vm, c.KVM_SET_USER_MEMORY_REGION, @ptrToInt(&region));
+    ret = ioctl(vm, c.KVM_SET_USER_MEMORY_REGION, @intFromPtr(&region));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to initialize memory: {}", .{os.errno(ret)});
         return error.CREATE_MEM;
@@ -101,7 +101,7 @@ pub fn createVCPU(i: usize) !os.fd_t {
         log.err("failed to create cpu{}: {}", .{ i, os.errno(ret) });
         return error.CREATE_CPU;
     }
-    return @intCast(os.fd_t, ret);
+    return @intCast(ret);
 }
 
 pub fn fixCpuids(vcpu: os.fd_t, i: usize, cb: *const fn (usize, *c.kvm_cpuid_entry2) void) !void {
@@ -111,7 +111,7 @@ pub fn fixCpuids(vcpu: os.fd_t, i: usize, cb: *const fn (usize, *c.kvm_cpuid_ent
         entries: [100]c.kvm_cpuid_entry2,
     };
     var cpuid = std.mem.zeroInit(_CPUID, .{ .nent = 100 });
-    var ret = ioctl(f.handle, c.KVM_GET_SUPPORTED_CPUID, @ptrToInt(&cpuid));
+    var ret = ioctl(f.handle, c.KVM_GET_SUPPORTED_CPUID, @intFromPtr(&cpuid));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to get supported cpuid: {}", .{os.errno(ret)});
         return error.CPUID;
@@ -121,7 +121,7 @@ pub fn fixCpuids(vcpu: os.fd_t, i: usize, cb: *const fn (usize, *c.kvm_cpuid_ent
         cb(i, entry);
     }
 
-    ret = ioctl(vcpu, c.KVM_SET_CPUID2, @ptrToInt(&cpuid));
+    ret = ioctl(vcpu, c.KVM_SET_CPUID2, @intFromPtr(&cpuid));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to set cpuid: {}", .{os.errno(ret)});
         return error.CPUID;
@@ -144,7 +144,7 @@ fn setIrqLevelInner(irq: u32, level: u32) !void {
         .irq = irq,
     }, .level = level };
 
-    const ret = ioctl(vm, c.KVM_IRQ_LINE, @ptrToInt(&irq_level));
+    const ret = ioctl(vm, c.KVM_IRQ_LINE, @intFromPtr(&irq_level));
     //log.info("tw; set irq{}, level = {}", .{ irq, level });
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to set irq{}, level{}: {}", .{ irq, level, os.errno(ret) });
@@ -181,7 +181,7 @@ pub fn addIOEventFd(addr: u64, len: u32, fd: os.fd_t, datamatch: ?u64) !void {
     ioevent.fd = fd;
     ioevent.flags = if (datamatch != null) c.KVM_IOEVENTFD_FLAG_DATAMATCH else 0;
 
-    ret = ioctl(vm, c.KVM_IOEVENTFD, @ptrToInt(&ioevent));
+    ret = ioctl(vm, c.KVM_IOEVENTFD, @intFromPtr(&ioevent));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to add ioeventfd: {}", .{os.errno(ret)});
         return error.IOEVENTFD;

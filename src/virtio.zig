@@ -65,7 +65,7 @@ pub const Q = struct {
 
     pub fn getAvail(self: *Self) ?Desc {
         if (self.ring.avail == null) return null;
-        if (self.support_event_idx) @ptrCast(*volatile u16, self.ring.used.*.ring() + self.ring.num).* = self.last_avail;
+        if (self.support_event_idx) @as(*volatile u16, @ptrCast(self.ring.used.*.ring() + self.ring.num)).* = self.last_avail;
         if (self.last_avail == self.ring.avail.*.idx) return null;
         //std.debug.print("{} {}\n", .{ self.last_avail, self.ring.avail.*.idx });
 
@@ -83,7 +83,7 @@ pub const Q = struct {
         std.debug.assert(self.ring.used != null);
         const i = self.ring.used.*.idx;
         self.ring.used.*.ring()[i % self.ring.num] = used;
-        @ptrCast(*volatile u16, &self.ring.used.*.idx).* = i +% 1;
+        @as(*volatile u16, @ptrCast(&self.ring.used.*.idx)).* = i +% 1;
         //std.debug.print("put {}\n", .{i +% 1});
     }
 
@@ -91,7 +91,7 @@ pub const Q = struct {
         if (d.desc.flags & c.VRING_DESC_F_INDIRECT != 0) {
             const max = d.desc.len / @sizeOf(c.vring_desc);
             const ram = kvm.getMem();
-            const table = @ptrCast([*]c.vring_desc, @alignCast(@alignOf(c.vring_desc), ram.ptr + d.desc.addr))[0..max];
+            const table = @as([*]c.vring_desc, @alignCast(@ptrCast(ram.ptr + d.desc.addr)))[0..max];
             return Desc{
                 .id = d.id,
                 .desc = table[0],

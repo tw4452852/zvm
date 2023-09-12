@@ -34,20 +34,20 @@ fn create_gicv2() !void {
         .type = c.KVM_DEV_TYPE_ARM_VGIC_V2,
         .fd = 0,
     };
-    var ret = ioctl(vm, c.KVM_CREATE_DEVICE, @ptrToInt(&dev));
+    var ret = ioctl(vm, c.KVM_CREATE_DEVICE, @intFromPtr(&dev));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to create gicv2: {}", .{os.errno(ret)});
         return error.CREAT_GICV2;
     }
-    errdefer os.close(@bitCast(os.fd_t, dev.fd));
+    errdefer os.close(@bitCast(dev.fd));
 
     const cpu = c.kvm_device_attr{
         .group = c.KVM_DEV_ARM_VGIC_GRP_ADDR,
         .attr = c.KVM_VGIC_V2_ADDR_TYPE_CPU,
-        .addr = @ptrToInt(&mmio.alloc_space(gic_cpu_size)),
+        .addr = @intFromPtr(&mmio.alloc_space(gic_cpu_size)),
         .flags = 0,
     };
-    ret = ioctl(vm, c.KVM_SET_DEVICE_ATTR, @ptrToInt(&cpu));
+    ret = ioctl(vm, c.KVM_SET_DEVICE_ATTR, @intFromPtr(&cpu));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to create gicv2 cpu interface: {}", .{os.errno(ret)});
         return error.CREAT_GICV2;
@@ -56,10 +56,10 @@ fn create_gicv2() !void {
     const dist = c.kvm_device_attr{
         .group = c.KVM_DEV_ARM_VGIC_GRP_ADDR,
         .attr = c.KVM_VGIC_V2_ADDR_TYPE_DIST,
-        .addr = @ptrToInt(&mmio.alloc_space(gic_dist_size)),
+        .addr = @intFromPtr(&mmio.alloc_space(gic_dist_size)),
         .flags = 0,
     };
-    ret = ioctl(vm, c.KVM_SET_DEVICE_ATTR, @ptrToInt(&dist));
+    ret = ioctl(vm, c.KVM_SET_DEVICE_ATTR, @intFromPtr(&dist));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to create gicv2 dist interface: {}", .{os.errno(ret)});
         return error.CREAT_GICV2;
@@ -87,20 +87,20 @@ fn create_gicv3(num_cores: usize) !void {
         .type = c.KVM_DEV_TYPE_ARM_VGIC_V3,
         .fd = 0,
     };
-    var ret = ioctl(vm, c.KVM_CREATE_DEVICE, @ptrToInt(&dev));
+    var ret = ioctl(vm, c.KVM_CREATE_DEVICE, @intFromPtr(&dev));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to create gicv3: {}", .{os.errno(ret)});
         return error.CREAT_GICV3;
     }
-    errdefer os.close(@bitCast(os.fd_t, dev.fd));
+    errdefer os.close(@bitCast(dev.fd));
 
     const redist = c.kvm_device_attr{
         .group = c.KVM_DEV_ARM_VGIC_GRP_ADDR,
         .attr = c.KVM_VGIC_V3_ADDR_TYPE_REDIST,
-        .addr = @ptrToInt(&mmio.alloc_space(gic_redist_size)),
+        .addr = @intFromPtr(&mmio.alloc_space(gic_redist_size)),
         .flags = 0,
     };
-    ret = ioctl(vm, c.KVM_SET_DEVICE_ATTR, @ptrToInt(&redist));
+    ret = ioctl(vm, c.KVM_SET_DEVICE_ATTR, @intFromPtr(&redist));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to create gicv3 redist interface: {}", .{os.errno(ret)});
         return error.CREAT_GICV3;
@@ -109,10 +109,10 @@ fn create_gicv3(num_cores: usize) !void {
     const dist = c.kvm_device_attr{
         .group = c.KVM_DEV_ARM_VGIC_GRP_ADDR,
         .attr = c.KVM_VGIC_V3_ADDR_TYPE_DIST,
-        .addr = @ptrToInt(&mmio.alloc_space(gic_dist_size)),
+        .addr = @intFromPtr(&mmio.alloc_space(gic_dist_size)),
         .flags = 0,
     };
-    ret = ioctl(vm, c.KVM_SET_DEVICE_ATTR, @ptrToInt(&dist));
+    ret = ioctl(vm, c.KVM_SET_DEVICE_ATTR, @intFromPtr(&dist));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to create gicv3 dist interface: {}", .{os.errno(ret)});
         return error.CREAT_GICV3;

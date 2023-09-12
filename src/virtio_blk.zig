@@ -41,7 +41,7 @@ fn blkio(q: *virtio.Q) !void {
         while (q.getAvail()) |desc0| {
             //log.info("{}: 0x{x}, {} 0x{x} {}\n", .{ desc0.id, desc0.desc.addr, desc0.desc.len, desc0.desc.flags, desc0.desc.next });
             std.debug.assert(desc0.desc.len == @sizeOf(c.virtio_blk_outhdr));
-            const hdr = @ptrCast(*const c.virtio_blk_outhdr, @alignCast(@alignOf(c.virtio_blk_outhdr), ram.ptr + desc0.desc.addr));
+            const hdr: *const c.virtio_blk_outhdr = @alignCast(@ptrCast(ram.ptr + desc0.desc.addr));
             const off = hdr.sector * 512;
             const t = hdr.type;
 
@@ -77,7 +77,7 @@ fn blkio(q: *virtio.Q) !void {
             //log.info("{} from:0x{x}, len:0x{x}\n", .{ t, off, @truncate(c_uint, len) });
             q.putUsed(.{
                 .id = desc0.id,
-                .len = @truncate(c_uint, len),
+                .len = @truncate(len),
             });
         }
         // notfiy guest if needed
@@ -194,7 +194,7 @@ fn mmio_rw(offset: u64, op: io.Operation, len: u32, data: []u8) anyerror!void {
         },
         else => if (offset >= c.VIRTIO_MMIO_CONFIG) {
             const off = offset - c.VIRTIO_MMIO_CONFIG;
-            const ptr = @ptrCast([*]u8, &config);
+            const ptr: [*]u8 = @ptrCast(&config);
             std.debug.assert(len == 1);
             switch (op) {
                 .Read => data[0] = (ptr + off)[0],

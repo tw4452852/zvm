@@ -27,7 +27,7 @@ pub fn createAndStartCpus(num_cores: usize) !void {
         // enable debug if any
         if (root.enable_debug) {
             const debug = mem.zeroInit(c.kvm_guest_debug, .{ .control = c.KVM_GUESTDBG_ENABLE | c.KVM_GUESTDBG_SINGLESTEP });
-            const ret = ioctl(vcpu, c.KVM_SET_GUEST_DEBUG, @ptrToInt(&debug));
+            const ret = ioctl(vcpu, c.KVM_SET_GUEST_DEBUG, @intFromPtr(&debug));
             if (os.errno(ret) != .SUCCESS) {
                 log.err("failed to enable debug: {}", .{os.errno(ret)});
                 return error.CREATE_CPU;
@@ -50,7 +50,7 @@ pub fn createAndStartCpus(num_cores: usize) !void {
 
 fn runVCPU(vcpu: os.fd_t) !void {
     const run_ptr = try kvm.getRun(vcpu);
-    const run = @ptrCast(*c.kvm_run, run_ptr.ptr);
+    const run: *c.kvm_run = @ptrCast(run_ptr.ptr);
 
     while (true) {
         const ret = ioctl(vcpu, c.KVM_RUN, 0);
@@ -62,15 +62,15 @@ fn runVCPU(vcpu: os.fd_t) !void {
         }
 
         const ctx = &run.unnamed_0;
-        const reason = @intToEnum(kvm.ExitReason, run.exit_reason);
+        const reason: kvm.ExitReason = @enumFromInt(run.exit_reason);
         switch (reason) {
             .io => {
                 //log.info("io: 0x{X}, {}, [{}]{}", .{ ctx.io.port, ctx.io.direction, ctx.io.count, ctx.io.size });
-                try portio.handle(ctx.io.port, @intToEnum(io.Operation, ctx.io.direction), ctx.io.size, ctx.io.count, run_ptr[ctx.io.data_offset .. ctx.io.data_offset + ctx.io.count * ctx.io.size]);
+                try portio.handle(ctx.io.port, @enumFromInt(ctx.io.direction), ctx.io.size, ctx.io.count, run_ptr[ctx.io.data_offset .. ctx.io.data_offset + ctx.io.count * ctx.io.size]);
             },
             .mmio => {
                 //log.info("io: 0x{X}, {}, [{}]{}", .{ ctx.io.port, ctx.io.direction, ctx.io.count, ctx.io.size });
-                try mmio.handle(ctx.mmio.phys_addr, @intToEnum(io.Operation, ctx.mmio.is_write), ctx.mmio.len, &ctx.mmio.data);
+                try mmio.handle(ctx.mmio.phys_addr, @enumFromInt(ctx.mmio.is_write), ctx.mmio.len, &ctx.mmio.data);
             },
             .shutdown => {
                 log.info("shutdown", .{});

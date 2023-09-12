@@ -36,10 +36,10 @@ pub fn build(b: *std.build.Builder) void {
         const libfdtFlags = [_][]const u8{};
         libfdt.addCSourceFiles(&libfdtSources, &libfdtFlags);
         libfdt.linkLibC();
-        libfdt.addIncludePath("src/libfdt");
+        libfdt.addIncludePath(.{ .path = "src/libfdt"});
 
         exe.linkLibrary(libfdt);
-        exe.addIncludePath("src/libfdt");
+        exe.addIncludePath(.{ .path = "src/libfdt"});
     }
 
     b.installArtifact(exe);

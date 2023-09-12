@@ -15,7 +15,7 @@ pub fn init_vm(num_cores: usize) !void {
     const vm = kvm.getVM();
 
     const pit_config = mem.zeroes(c.kvm_pit_config);
-    var ret = ioctl(vm, c.KVM_CREATE_PIT2, @ptrToInt(&pit_config));
+    var ret = ioctl(vm, c.KVM_CREATE_PIT2, @intFromPtr(&pit_config));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to create pit: {}", .{os.errno(ret)});
         return error.CREAT_PIT;
@@ -35,7 +35,7 @@ fn initMPTable(num_cores: usize) void {
     const mptable_start = 0x9fc00;
 
     var p = ram.ptr + mptable_start;
-    var mpf_intel = @ptrCast(*mpspec.mpf_intel, @alignCast(@alignOf(mpspec.mpf_intel), p));
+    var mpf_intel: *mpspec.mpf_intel = @alignCast(@ptrCast(p));
     mpf_intel.signature = "_MP_".*;
     mpf_intel.specification = 4;
     mpf_intel.length = 1;
@@ -43,15 +43,15 @@ fn initMPTable(num_cores: usize) void {
     mpf_intel.checksum = blk: {
         var sum: usize = 0;
         var i: usize = 0;
-        const start = @ptrCast([*]u8, mpf_intel);
+        const start: [*]u8 = @ptrCast(mpf_intel);
         while (i < @sizeOf(mpspec.mpf_intel)) : (i += 1) {
             sum += start[i];
         }
-        break :blk 0 -% @truncate(u8, sum);
+        break :blk 0 -% @as(u8, @truncate(sum));
     };
     p += @sizeOf(mpspec.mpf_intel);
 
-    var mpc_table = @ptrCast(*mpspec.mpc_table, @alignCast(@alignOf(mpspec.mpc_table), p));
+    var mpc_table: *mpspec.mpc_table = @alignCast(@ptrCast(p));
     mpc_table.signature = "PCMP".*;
     mpc_table.spec = 4;
     mpc_table.productid = "123456789abc".*;
@@ -59,7 +59,7 @@ fn initMPTable(num_cores: usize) void {
     mpc_table.oem = "12345678".*;
     p += @sizeOf(mpspec.mpc_table);
 
-    var mpc_cpus = @ptrCast([*]mpspec.mpc_cpu, @alignCast(@alignOf(mpspec.mpc_cpu), p));
+    var mpc_cpus: [*]mpspec.mpc_cpu = @alignCast(@ptrCast(p));
     var i: u8 = 0;
     while (i < num_cores) : (i += 1) {
         mpc_cpus[i].type = mpspec.MP_PROCESSOR;
@@ -71,8 +71,8 @@ fn initMPTable(num_cores: usize) void {
         p += @sizeOf(mpspec.mpc_cpu);
     }
 
-    var mpc_ioapic = @ptrCast(*mpspec.mpc_ioapic, @alignCast(@alignOf(mpspec.mpc_ioapic), p));
-    const ioapicid = @truncate(u8, num_cores + 1);
+    var mpc_ioapic: *mpspec.mpc_ioapic = @alignCast(@ptrCast(p));
+    const ioapicid = @as(u8, @truncate(num_cores + 1));
     mpc_ioapic.type = mpspec.MP_IOAPIC;
     mpc_ioapic.apicid = ioapicid;
     mpc_ioapic.apicver = 0x14; // xAPIC
@@ -82,7 +82,7 @@ fn initMPTable(num_cores: usize) void {
 
     i = 0;
     while (i < 16) : (i += 1) {
-        var mpc_intsrc = @ptrCast(*mpspec.mpc_intsrc, @alignCast(@alignOf(mpspec.mpc_intsrc), p));
+        var mpc_intsrc: *mpspec.mpc_intsrc = @alignCast(@ptrCast(p));
         mpc_intsrc.type = mpspec.MP_INTSRC;
         mpc_intsrc.irqtype = mpspec.mp_INT;
         mpc_intsrc.irqflag = mpspec.MP_IRQDIR_DEFAULT;
@@ -93,7 +93,7 @@ fn initMPTable(num_cores: usize) void {
         p += @sizeOf(mpspec.mpc_intsrc);
     }
 
-    var mpc_intsrc = @ptrCast(*mpspec.mpc_intsrc, @alignCast(@alignOf(mpspec.mpc_intsrc), p));
+    var mpc_intsrc: *mpspec.mpc_intsrc = @alignCast(@ptrCast(p));
     mpc_intsrc.type = mpspec.MP_LINTSRC;
     mpc_intsrc.irqtype = mpspec.mp_ExtINT;
     mpc_intsrc.irqflag = mpspec.MP_IRQDIR_DEFAULT;
@@ -103,7 +103,7 @@ fn initMPTable(num_cores: usize) void {
     mpc_intsrc.dstirq = 0;
     p += @sizeOf(mpspec.mpc_intsrc);
 
-    mpc_intsrc = @ptrCast(*mpspec.mpc_intsrc, @alignCast(@alignOf(mpspec.mpc_intsrc), p));
+    mpc_intsrc = @alignCast(@ptrCast(p));
     mpc_intsrc.type = mpspec.MP_LINTSRC;
     mpc_intsrc.irqtype = mpspec.mp_NMI;
     mpc_intsrc.irqflag = mpspec.MP_IRQDIR_DEFAULT;
@@ -113,15 +113,15 @@ fn initMPTable(num_cores: usize) void {
     mpc_intsrc.dstirq = 1;
     p += @sizeOf(mpspec.mpc_intsrc);
 
-    mpc_table.length = @truncate(u16, @ptrToInt(p) - @ptrToInt(mpc_table));
+    mpc_table.length = @as(u16, @truncate(@intFromPtr(p) - @intFromPtr(mpc_table)));
     mpc_table.checksum = blk: {
         var sum: usize = 0;
         i = 0;
-        const start = @ptrCast([*]u8, mpc_table);
+        const start = @as([*]u8, @ptrCast(mpc_table));
         while (i < mpc_table.length) : (i += 1) {
             sum += start[i];
         }
-        break :blk 0 -% @truncate(u8, sum);
+        break :blk 0 -% @as(u8, @truncate(sum));
     };
 }
 
@@ -134,10 +134,10 @@ pub fn load_kernel(kernel_path: []const u8, cmdline: []const u8, initrd_path: ?[
     const data = try os.mmap(null, fsize, c.PROT_READ, c.MAP_PRIVATE, f.handle, 0);
 
     // get the header first
-    var hdr = @ptrCast(*bootparam.setup_header, data.ptr + 0x1f1);
+    var hdr: *bootparam.setup_header = @ptrCast(data.ptr + 0x1f1);
 
     // check the magic number
-    if (!mem.eql(u8, @ptrCast([*]u8, &hdr.header)[0..4], "HdrS")) {
+    if (!mem.eql(u8, @as([*]const u8, @ptrCast(&hdr.header))[0..4], "HdrS")) {
         log.err("invalid magic number: {X}", .{hdr.header});
         return error.BADIMAGE;
     }
@@ -168,13 +168,13 @@ pub fn load_kernel(kernel_path: []const u8, cmdline: []const u8, initrd_path: ?[
     @memcpy(ram[cmd_addr .. cmd_addr + cmdline.len], cmdline[0..cmdline.len]);
 
     // fill in some necessary fields in setup header
-    hdr = @ptrCast(*bootparam.setup_header, ram.ptr + setup_addr + 0x1f1);
+    hdr = @as(*bootparam.setup_header, @ptrCast(ram.ptr + setup_addr + 0x1f1));
     hdr.type_of_loader = 0xff;
     hdr.heap_end_ptr = 0xfe00;
     hdr.loadflags |= @as(u8, bootparam.CAN_USE_HEAP | bootparam.LOADED_HIGH);
     hdr.vid_mode = 0xffff; // normal
     hdr.cmd_line_ptr = cmd_addr;
-    prepare_e820(@ptrCast([*]bootparam.boot_e820_entry, ram.ptr + setup_addr + 0x2d0), @ptrCast(*u8, ram.ptr + setup_addr + 0x1e8), ram.len);
+    prepare_e820(@as([*]bootparam.boot_e820_entry, @ptrCast(ram.ptr + setup_addr + 0x2d0)), @as(*u8, @ptrCast(ram.ptr + setup_addr + 0x1e8)), ram.len);
 
     hdr.ramdisk_image = 0;
     hdr.ramdisk_size = 0;
@@ -185,7 +185,7 @@ pub fn load_kernel(kernel_path: []const u8, cmdline: []const u8, initrd_path: ?[
         const initrd_size = (try initrd_f.stat()).size;
         const initrd_data = try os.mmap(null, initrd_size, c.PROT_READ, c.MAP_PRIVATE, initrd_f.handle, 0);
 
-        var initrd_addr = std.math.min(hdr.initrd_addr_max, ram.len);
+        var initrd_addr = @min(hdr.initrd_addr_max, ram.len);
         const kernel_end = kernel_addr + kernel_size;
         while (initrd_addr > kernel_end) : (initrd_addr -= 0x100_000) {
             if (initrd_addr + initrd_size < ram.len) break;
@@ -195,8 +195,8 @@ pub fn load_kernel(kernel_path: []const u8, cmdline: []const u8, initrd_path: ?[
         }
 
         log.info("initrd loaded to 0x{X}", .{initrd_addr});
-        hdr.ramdisk_image = @truncate(u32, initrd_addr);
-        hdr.ramdisk_size = @truncate(u32, initrd_size);
+        hdr.ramdisk_image = @as(u32, @truncate(initrd_addr));
+        hdr.ramdisk_size = @as(u32, @truncate(initrd_size));
         @memcpy(ram[initrd_addr .. initrd_addr + initrd_size], initrd_data[0..initrd_size]);
     }
 }
@@ -256,7 +256,7 @@ pub fn init_vcpu(vcpu: os.fd_t, i: usize) !void {
 
 fn setup_lapic(vcpu: os.fd_t) !void {
     var state: c.kvm_lapic_state = undefined;
-    var ret = ioctl(vcpu, c.KVM_GET_LAPIC, @ptrToInt(&state));
+    var ret = ioctl(vcpu, c.KVM_GET_LAPIC, @intFromPtr(&state));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to get lapic state: {}", .{os.errno(ret)});
         return error.LAPIC;
@@ -268,14 +268,14 @@ fn setup_lapic(vcpu: os.fd_t) !void {
     const APIC_MODE_NMI = 0x4;
 
     // LVT0 is set for external interrupts
-    const lint0 = @ptrCast(*u32, @alignCast(4, &state.regs[APIC_LVT0]));
+    const lint0: *u32 = @alignCast(@ptrCast(&state.regs[APIC_LVT0]));
     lint0.* |= APIC_MODE_EXTINT << 8;
 
     // LVT1 is set for NMI
-    const lint1 = @ptrCast(*u32, @alignCast(4, &state.regs[APIC_LVT1]));
+    const lint1: *u32 = @alignCast(@ptrCast(&state.regs[APIC_LVT1]));
     lint1.* |= APIC_MODE_NMI << 8;
 
-    ret = ioctl(vcpu, c.KVM_SET_LAPIC, @ptrToInt(&state));
+    ret = ioctl(vcpu, c.KVM_SET_LAPIC, @intFromPtr(&state));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to set lapic state: {}", .{os.errno(ret)});
         return error.LAPIC;
@@ -289,11 +289,11 @@ fn setup_cpuid(vcpu: os.fd_t, i: usize) !void {
                 1 => {
                     const initial_apicid_shift = 24;
                     entry.ebx &= ~(@as(c_uint, 0xff) << initial_apicid_shift);
-                    entry.ebx |= @truncate(c_uint, cpuid) << initial_apicid_shift;
+                    entry.ebx |= @as(c_uint, @truncate(cpuid)) << initial_apicid_shift;
                 },
                 11 => {
                     // EDX bits 31..0 contain x2APIC ID of current logical processor.
-                    entry.edx = @truncate(c_uint, cpuid);
+                    entry.edx = @as(c_uint, @truncate(cpuid));
                 },
                 else => {},
             }
@@ -305,7 +305,7 @@ fn setup_cpuid(vcpu: os.fd_t, i: usize) !void {
 fn setup_regs(vcpu: os.fd_t) !void {
     // setup selector regs
     var sregs: c.kvm_sregs = undefined;
-    var ret = ioctl(vcpu, c.KVM_GET_SREGS, @ptrToInt(&sregs));
+    var ret = ioctl(vcpu, c.KVM_GET_SREGS, @intFromPtr(&sregs));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to get sregs: {}", .{os.errno(ret)});
         return error.REGS;
@@ -333,7 +333,7 @@ fn setup_regs(vcpu: os.fd_t) !void {
     sregs.cs.db = 1;
     sregs.ss.db = 1;
     sregs.cr0 |= 1; // enable protected mode
-    ret = ioctl(vcpu, c.KVM_SET_SREGS, @ptrToInt(&sregs));
+    ret = ioctl(vcpu, c.KVM_SET_SREGS, @intFromPtr(&sregs));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to set sregs: {}", .{os.errno(ret)});
         return error.REGS;
@@ -341,7 +341,7 @@ fn setup_regs(vcpu: os.fd_t) !void {
 
     // setup general regs
     var regs: c.kvm_regs = undefined;
-    ret = ioctl(vcpu, c.KVM_GET_REGS, @ptrToInt(&regs));
+    ret = ioctl(vcpu, c.KVM_GET_REGS, @intFromPtr(&regs));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to get regs: {}", .{os.errno(ret)});
         return error.REGS;
@@ -350,7 +350,7 @@ fn setup_regs(vcpu: os.fd_t) !void {
     regs.rip = 0x100000; // the location protected mode entry
     regs.rsi = 0x10000; // the location of boot_param
 
-    ret = ioctl(vcpu, c.KVM_SET_REGS, @ptrToInt(&regs));
+    ret = ioctl(vcpu, c.KVM_SET_REGS, @intFromPtr(&regs));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to set regs: {}", .{os.errno(ret)});
         return error.REGS;
@@ -365,7 +365,7 @@ pub fn record_ins(vcpu: os.fd_t, p: ?*const c.kvm_debug_exit_arch) !void {
         ctx.pc
     else blk: {
         var regs: c.kvm_regs = undefined;
-        const ret = ioctl(vcpu, c.KVM_GET_REGS, @ptrToInt(&regs));
+        const ret = ioctl(vcpu, c.KVM_GET_REGS, @intFromPtr(&regs));
         if (os.errno(ret) != .SUCCESS) {
             log.err("failed to get regs: {}", .{os.errno(ret)});
             return error.REGS;
@@ -380,13 +380,13 @@ pub fn record_ins(vcpu: os.fd_t, p: ?*const c.kvm_debug_exit_arch) !void {
 pub fn dump_vcpu(vcpu: os.fd_t) !void {
     const ram = kvm.getMem();
     var sregs: c.kvm_sregs = undefined;
-    var ret = ioctl(vcpu, c.KVM_GET_SREGS, @ptrToInt(&sregs));
+    var ret = ioctl(vcpu, c.KVM_GET_SREGS, @intFromPtr(&sregs));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to get sregs: {}", .{os.errno(ret)});
         return error.REGS;
     }
     var regs: c.kvm_regs = undefined;
-    ret = ioctl(vcpu, c.KVM_GET_REGS, @ptrToInt(&regs));
+    ret = ioctl(vcpu, c.KVM_GET_REGS, @intFromPtr(&regs));
     if (os.errno(ret) != .SUCCESS) {
         log.err("failed to get regs: {}", .{os.errno(ret)});
         return error.REGS;

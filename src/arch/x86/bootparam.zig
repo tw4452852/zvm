@@ -305,8 +305,7 @@ pub const struct_setup_data = extern struct {
     len: __u32,
     pub fn data(self: anytype) @import("std").zig.c_translation.FlexibleArrayType(@TypeOf(self), __u8) {
         const Intermediate = @import("std").zig.c_translation.FlexibleArrayType(@TypeOf(self), u8);
-        const ReturnType = @import("std").zig.c_translation.FlexibleArrayType(@TypeOf(self), __u8);
-        return @ptrCast(ReturnType, @alignCast(@alignOf(__u8), @ptrCast(Intermediate, self) + 16));
+        return @ptrCast(@alignCast(@as(Intermediate, @ptrCast(self)) + 16));
     }
 };
 pub const struct_setup_indirect = extern struct {
