@@ -116,10 +116,9 @@ fn initMPTable(num_cores: usize) void {
     mpc_table.length = @as(u16, @truncate(@intFromPtr(p) - @intFromPtr(mpc_table)));
     mpc_table.checksum = blk: {
         var sum: usize = 0;
-        i = 0;
-        const start = @as([*]u8, @ptrCast(mpc_table));
-        while (i < mpc_table.length) : (i += 1) {
-            sum += start[i];
+        const bytes = @as([*]u8, @ptrCast(mpc_table))[0..mpc_table.length];
+        for (bytes) |byte| {
+            sum += byte;
         }
         break :blk 0 -% @as(u8, @truncate(sum));
     };
