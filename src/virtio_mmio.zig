@@ -5,11 +5,37 @@ const fmt = std.fmt;
 
 const IO_SIZE = 0x200;
 
-pub fn register_dev(allocator: std.mem.Allocator, irq: u8, cmdline: *[]const u8, h: *const fn (u64, io.Operation, u32, []u8) anyerror!void) !u64 {
+pub const Dev = struct {
+    name: []const u8,
+    irq: u32,
+    start: u64,
+    len: u64,
+    next: ?*Dev,
+};
+
+var registered_devs: ?*Dev = null;
+var registered_num: usize = 0;
+
+pub fn get_registered_devs() ?*Dev {
+    return registered_devs;
+}
+
+pub fn register_dev(allocator: std.mem.Allocator, irq: u8, h: *const fn (u64, io.Operation, u32, []u8) anyerror!void) !u64 {
     const addr = mmio.alloc_space(IO_SIZE);
 
-    cmdline.* = try fmt.allocPrint(allocator, "{s} virtio_mmio.device=0x{x}@0x{x}:{}", .{ cmdline.*, IO_SIZE, addr, irq });
     try mmio.register_handler(addr, IO_SIZE, h);
+
+    const dev: Dev = .{
+        .name = try fmt.allocPrint(allocator, "virtio_mmio{}", .{registered_num}),
+        .irq = irq,
+        .start = addr,
+        .len = IO_SIZE,
+        .next = registered_devs,
+    };
+    const pdev = try allocator.create(Dev);
+    pdev.* = dev;
+    registered_devs = pdev;
+    registered_num += 1;
 
     return addr;
 }

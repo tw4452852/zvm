@@ -4,10 +4,11 @@ const io = @import("io.zig");
 pub const GAP_SIZE = (768 << 20);
 pub const GAP_START = (1 << 32) - GAP_SIZE;
 
+const min_alignment = (1 << 12); // one page
 var free_start: u64 = GAP_START;
 pub fn alloc_space(size: u64) u64 {
     defer free_start += size;
-    return free_start;
+    return std.mem.alignForward(u64, free_start, min_alignment);
 }
 
 const limit = 32;
@@ -32,6 +33,6 @@ pub fn register_handler(start: u64, count: u64, h: *const fn (u64, io.Operation,
 
 pub fn handle(addr: u64, op: io.Operation, len: u32, data: []u8) !void {
     for (handler_array[0..handlers]) |h| {
-        if (h.start <= addr and addr <= h.end) return h.handle(addr - h.start, op, len, data);
+        if (h.start <= addr and addr < h.end) return h.handle(addr - h.start, op, len, data);
     }
 }

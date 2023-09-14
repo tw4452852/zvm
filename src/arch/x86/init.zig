@@ -5,11 +5,13 @@ const ioctl = os.linux.ioctl;
 const log = std.log;
 const mem = std.mem;
 const dprint = std.debug.print;
-const c = @import("root").c;
+const root = @import("root");
+const c = root.c;
 const bootparam = @import("bootparam.zig");
 const kvm = @import("root").kvm;
 const mpspec = @import("mpspec_def.zig");
-const mmio = @import("../../mmio.zig");
+const mmio = root.mmio;
+const virtio_mmio = root.virtio_mmio;
 
 pub fn init_vm(num_cores: usize) !void {
     const vm = kvm.getVM();
@@ -124,7 +126,7 @@ fn initMPTable(num_cores: usize) void {
     };
 }
 
-pub fn load_kernel(kernel_path: []const u8, cmdline: []const u8, initrd_path: ?[]const u8) !void {
+pub fn load_kernel(kernel_path: []const u8, cmd: *root.Cmdline, initrd_path: ?[]const u8) !void {
     var ram = kvm.getMem();
     const f = try fs.cwd().openFile(kernel_path, .{});
     defer f.close();
@@ -161,6 +163,8 @@ pub fn load_kernel(kernel_path: []const u8, cmdline: []const u8, initrd_path: ?[
     }
     @memcpy(ram[kernel_addr .. kernel_addr + kernel_size], data[setup_size .. setup_size + kernel_size]);
 
+    try append_virtio_mmio_cmdline(cmd);
+    const cmdline = cmd.constSlice();
     // copy cmdline to 0x20000 (128K)
     const cmd_addr = 0x20_000;
     @memset(ram[cmd_addr .. cmd_addr + hdr.cmdline_size], 0);
@@ -197,6 +201,16 @@ pub fn load_kernel(kernel_path: []const u8, cmdline: []const u8, initrd_path: ?[
         hdr.ramdisk_image = @as(u32, @truncate(initrd_addr));
         hdr.ramdisk_size = @as(u32, @truncate(initrd_size));
         @memcpy(ram[initrd_addr .. initrd_addr + initrd_size], initrd_data[0..initrd_size]);
+    }
+}
+
+fn append_virtio_mmio_cmdline(cmd: *root.Cmdline) !void {
+    var virtio_mmio_dev: ?*virtio_mmio.Dev = virtio_mmio.get_registered_devs();
+    var buf: [64]u8 = undefined;
+
+    while (virtio_mmio_dev) |dev| : (virtio_mmio_dev = dev.next) {
+        const s = try std.fmt.bufPrint(&buf, " virtio_mmio.device=0x{x}@0x{x}:{}", .{ dev.len, dev.start, dev.irq });
+        try cmd.appendSlice(s);
     }
 }
 

@@ -21,9 +21,9 @@ var allocator: mem.Allocator = undefined;
 var disk_file_path: []const u8 = undefined;
 var irq_line: u8 = undefined;
 
-pub fn init(alloc: std.mem.Allocator, path: []const u8, cmdline: *[]const u8) !void {
+pub fn init(alloc: std.mem.Allocator, path: []const u8) !void {
     irq_line = irq.alloc();
-    addr = try virtio_mmio.register_dev(alloc, irq_line, cmdline, mmio_rw);
+    addr = try virtio_mmio.register_dev(alloc, irq_line, mmio_rw);
     allocator = alloc;
     disk_file_path = path;
 

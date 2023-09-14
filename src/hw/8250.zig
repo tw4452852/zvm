@@ -6,7 +6,7 @@ const assert = std.debug.assert;
 const mem = std.mem;
 const kvm = @import("root").kvm;
 
-const IRQ = 4;
+var irq: u32 = 4;
 
 const RBR = 0;
 const THR = 0;
@@ -37,6 +37,10 @@ var rIdx: u6 = 0;
 var wIdx: u6 = 0;
 
 var mutex = std.Thread.Mutex{};
+
+pub fn setup_irq(n: u32) void {
+    irq = n;
+}
 
 pub fn handle(offset: u16, op: io.Operation, size: u8, count: u32, val: []u8) anyerror!void {
     assert(size * count == val.len);
@@ -87,9 +91,9 @@ fn updateIrq() !void {
     }
 
     if (prevIir == false and iir == true) {
-        try kvm.setIrqLevel(IRQ, 1);
+        try kvm.setIrqLevel(irq, 1);
     } else if (prevIir == true and iir == false) {
-        try kvm.setIrqLevel(IRQ, 0);
+        try kvm.setIrqLevel(irq, 0);
     }
 
     prevIir = iir;
@@ -101,6 +105,7 @@ pub fn forwardStdin(line: []const u8) !void {
     var sysrq = false;
     var chars = line;
 
+    // ctrl+v as prefix
     if (mem.startsWith(u8, chars, "\x16")) {
         log.info("enter sysrq", .{});
         sysrq = true;

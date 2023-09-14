@@ -6,6 +6,8 @@ const ioctl = os.linux.ioctl;
 const c = @import("root").c;
 const assert = std.debug.assert;
 const mmio = @import("mmio.zig");
+const Arch = @import("arch/index.zig").Arch;
+const hasFn = std.meta.trait.hasFn;
 
 var f: fs.File = undefined;
 var vm: os.fd_t = undefined;
@@ -68,8 +70,8 @@ pub fn getMem() []u8 {
 
 pub fn createVM(ram_size: usize) !void {
     var ret = ioctl(f.handle, c.KVM_CREATE_VM, 0);
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to create vm: {}", .{os.errno(ret)});
+    if (os.linux.getErrno(ret) != .SUCCESS) {
+        log.err("failed to create vm: {}", .{os.linux.getErrno(ret)});
         return error.CREATE_VM;
     }
     vm = @intCast(ret);
@@ -84,8 +86,8 @@ pub fn createVM(ram_size: usize) !void {
         .flags = 0,
     };
     ret = ioctl(vm, c.KVM_SET_USER_MEMORY_REGION, @intFromPtr(&region));
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to initialize memory: {}", .{os.errno(ret)});
+    if (os.linux.getErrno(ret) != .SUCCESS) {
+        log.err("failed to initialize memory: {}", .{os.linux.getErrno(ret)});
         return error.CREATE_MEM;
     }
 }
@@ -97,8 +99,8 @@ pub fn destroyVM() void {
 
 pub fn createVCPU(i: usize) !os.fd_t {
     const ret = ioctl(vm, c.KVM_CREATE_VCPU, i);
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to create cpu{}: {}", .{ i, os.errno(ret) });
+    if (os.linux.getErrno(ret) != .SUCCESS) {
+        log.err("failed to create cpu{}: {}", .{ i, os.linux.getErrno(ret) });
         return error.CREATE_CPU;
     }
     return @intCast(ret);
@@ -112,8 +114,8 @@ pub fn fixCpuids(vcpu: os.fd_t, i: usize, cb: *const fn (usize, *c.kvm_cpuid_ent
     };
     var cpuid = std.mem.zeroInit(_CPUID, .{ .nent = 100 });
     var ret = ioctl(f.handle, c.KVM_GET_SUPPORTED_CPUID, @intFromPtr(&cpuid));
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to get supported cpuid: {}", .{os.errno(ret)});
+    if (os.linux.getErrno(ret) != .SUCCESS) {
+        log.err("failed to get supported cpuid: {}", .{os.linux.getErrno(ret)});
         return error.CPUID;
     }
 
@@ -122,16 +124,16 @@ pub fn fixCpuids(vcpu: os.fd_t, i: usize, cb: *const fn (usize, *c.kvm_cpuid_ent
     }
 
     ret = ioctl(vcpu, c.KVM_SET_CPUID2, @intFromPtr(&cpuid));
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to set cpuid: {}", .{os.errno(ret)});
+    if (os.linux.getErrno(ret) != .SUCCESS) {
+        log.err("failed to set cpuid: {}", .{os.linux.getErrno(ret)});
         return error.CPUID;
     }
 }
 
 pub fn getRun(vcpu: os.fd_t) ![]align(4096) u8 {
     const ret = ioctl(f.handle, c.KVM_GET_VCPU_MMAP_SIZE, 0);
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to get run size: {}", .{os.errno(ret)});
+    if (os.linux.getErrno(ret) != .SUCCESS) {
+        log.err("failed to get run size: {}", .{os.linux.getErrno(ret)});
         return error.RUN;
     }
     return try os.mmap(null, ret, c.PROT_READ | c.PROT_WRITE, c.MAP_SHARED, vcpu, 0);
@@ -139,20 +141,26 @@ pub fn getRun(vcpu: os.fd_t) ![]align(4096) u8 {
 
 var irq_mutex = std.Thread.Mutex{};
 
-fn setIrqLevelInner(irq: u32, level: u32) !void {
-    const irq_level: c.kvm_irq_level = .{ .unnamed_0 = .{
-        .irq = irq,
-    }, .level = level };
+const setIrqLevelInner = if (hasFn("setIrqLevelInner")(Arch)) Arch.setIrqLevelInner else blk: {
+    const S = struct {
+        pub fn setIrqLevelInner(irq: u32, level: u1) !void {
+            const irq_level: c.kvm_irq_level = .{ .unnamed_0 = .{
+                .irq = irq,
+            }, .level = level };
 
-    const ret = ioctl(vm, c.KVM_IRQ_LINE, @intFromPtr(&irq_level));
-    //log.info("tw; set irq{}, level = {}", .{ irq, level });
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to set irq{}, level{}: {}", .{ irq, level, os.errno(ret) });
-        return error.IRQ;
-    }
-}
+            const ret = ioctl(vm, c.KVM_IRQ_LINE, @intFromPtr(&irq_level));
+            //log.info("tw; set irq{}, level = {}", .{ irq_level.unnamed_0.irq, irq_level.level });
+            if (os.linux.getErrno(ret) != .SUCCESS) {
+                log.err("failed to set irq{}, level{}: {}", .{ irq, level, os.linux.getErrno(ret) });
+                return error.IRQ;
+            }
+        }
+    };
 
-pub fn setIrqLevel(irq: u32, level: u32) !void {
+    break :blk S.setIrqLevelInner;
+};
+
+pub fn setIrqLevel(irq: u32, level: u1) !void {
     irq_mutex.lock();
     defer irq_mutex.unlock();
     try setIrqLevelInner(irq, level);
@@ -168,7 +176,7 @@ pub fn triggerIrq(irq: u32) !void {
 
 pub fn addIOEventFd(addr: u64, len: u32, fd: os.fd_t, datamatch: ?u64) !void {
     var ret = ioctl(f.handle, c.KVM_CHECK_EXTENSION, c.KVM_CAP_IOEVENTFD);
-    if (os.errno(ret) != .SUCCESS) {
+    if (os.linux.getErrno(ret) != .SUCCESS) {
         log.err("don't support ioeventfd", .{});
         return error.NOT_SUPPORT;
     }
@@ -182,8 +190,8 @@ pub fn addIOEventFd(addr: u64, len: u32, fd: os.fd_t, datamatch: ?u64) !void {
     ioevent.flags = if (datamatch != null) c.KVM_IOEVENTFD_FLAG_DATAMATCH else 0;
 
     ret = ioctl(vm, c.KVM_IOEVENTFD, @intFromPtr(&ioevent));
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to add ioeventfd: {}", .{os.errno(ret)});
+    if (os.linux.getErrno(ret) != .SUCCESS) {
+        log.err("failed to add ioeventfd: {}", .{os.linux.getErrno(ret)});
         return error.IOEVENTFD;
     }
 }

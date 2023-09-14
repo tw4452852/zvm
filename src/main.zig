@@ -9,13 +9,15 @@ pub const c = @cImport({
     @cInclude("linux/kvm_para.h");
     @cInclude("sys/mman.h");
 });
-const arch = @import("arch/index.zig");
+const Arch = @import("arch/index.zig").Arch;
 const portio = @import("portio.zig");
-const mmio = @import("mmio.zig");
 const stdio = @import("stdio.zig");
 const vcpu = @import("vcpu.zig");
 const virtio_blk = @import("virtio_blk.zig");
 pub const kvm = @import("kvm.zig");
+pub const mmio = @import("mmio.zig");
+pub const virtio_mmio = @import("virtio_mmio.zig");
+pub const Cmdline = std.BoundedArray(u8, 512);
 
 pub var enable_debug = false;
 
@@ -46,7 +48,7 @@ pub fn main() anyerror!void {
     var kernel_file_path: ?[]const u8 = null;
     var initrd_file_path: ?[]const u8 = null;
     var blk_file_path: ?[]const u8 = null;
-    var cmdline: []const u8 = "console=ttyS0 panic=1";
+    var cmdline = try Cmdline.fromSlice("console=ttyS0 panic=1");
     var ram_size: usize = 0x100_00000; // 256M
 
     var num_cores: u8 = 1;
@@ -60,9 +62,11 @@ pub fn main() anyerror!void {
                 return usage();
             };
         } else if (mem.eql(u8, arg, "-cmdline")) {
-            cmdline = nextArg(args, &arg_idx) orelse {
+            const input = nextArg(args, &arg_idx) orelse {
                 return usage();
             };
+            try cmdline.resize(0);
+            try cmdline.appendSlice(input);
         } else if (mem.eql(u8, arg, "-c")) {
             const s = nextArg(args, &arg_idx) orelse {
                 return usage();
@@ -106,15 +110,15 @@ pub fn main() anyerror!void {
     defer kvm.destroyVM();
 
     // init vm
-    try arch.init_vm(num_cores);
+    try Arch.init_vm(num_cores);
 
     if (blk_file_path) |path| {
-        try virtio_blk.init(allocator, path, &cmdline);
-        defer virtio_blk.deinit();
+        try virtio_blk.init(allocator, path);
     }
+    defer if (blk_file_path != null) virtio_blk.deinit();
 
     // load kernel into user memory
-    try arch.load_kernel(kernel_file_path.?, cmdline, initrd_file_path);
+    try Arch.load_kernel(kernel_file_path.?, &cmdline, initrd_file_path);
 
     // forward stdin to guest
     try stdio.startCapture();
