@@ -1,14 +1,9 @@
 const std = @import("std");
 const virtio = @import("virtio.zig");
 const virtio_mmio = @import("virtio_mmio.zig");
+const c = virtio_mmio.c;
 const io = @import("io.zig");
 const irq = @import("irq.zig");
-const c = @cImport({
-    @cInclude("linux/virtio_mmio.h");
-    @cInclude("linux/virtio_ids.h");
-    @cInclude("linux/virtio_blk.h");
-    @cInclude("linux/virtio_ring.h");
-});
 const mem = std.mem;
 const log = std.log;
 const fs = std.fs;

@@ -25,14 +25,14 @@ pub const Q = struct {
 
     const Self = @This();
 
-    pub fn init(pfn: u32, size: u32, alignment: u32, features: u64, specified_page_size: ?u32) !Self {
+    pub fn init(pfn: u32, size: u32, alignment: u32, features: u64, specified_page_size: ?u32, eventfd: os.fd_t) !Self {
         const ram = kvm.getMem();
         const offset = pfn * if (specified_page_size) |page_sz| page_sz else mem.page_size;
         var ring: c.vring = undefined;
         c.vring_init(&ring, size, ram.ptr + offset, alignment);
         const base = ram[offset .. offset + c.vring_size(size, alignment)];
         const f: fs.File = .{
-            .handle = try os.eventfd(0, 0),
+            .handle = eventfd,
             .capable_io_mode = .blocking,
             .intended_io_mode = .blocking,
         };

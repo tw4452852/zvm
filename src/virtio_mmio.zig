@@ -3,13 +3,14 @@ const io = @import("io.zig");
 const mmio = @import("mmio.zig");
 const virtio = @import("virtio.zig");
 const fmt = std.fmt;
-const c = @cImport({
+pub const c = @cImport({
     @cInclude("linux/virtio_mmio.h");
     @cInclude("linux/virtio_ids.h");
     @cInclude("linux/virtio_blk.h");
     @cInclude("linux/virtio_ring.h");
 });
 const mem = std.mem;
+const kvm = @import("root").kvm;
 
 const IO_SIZE = 0x200;
 
@@ -37,6 +38,7 @@ pub const Dev = struct {
     q_page_sz: ?u32 = null,
     irq_status: u32 = 0,
     init_queue_proc: *const fn (dev: *Self, q: *virtio.Q) anyerror!void = undefined,
+    not_support_ioeventfd: bool = false,
 
     pub fn init(allocator: std.mem.Allocator, name: []const u8, irq: u32, start: u64, len: u64, next: ?*Dev, h: Handler) !*Self {
         const dev: Self = .{
@@ -133,8 +135,13 @@ pub const Dev = struct {
                 .Write => {
                     const pfn = mem.readIntLittle(u32, data[0..4]);
                     if (pfn > 0) {
-                        const q = try virtio.Q.init(pfn, self.q_size, self.q_align, self.driver_features, self.q_page_sz);
-                        self.vqs[self.q_sel] = q;
+                        const i = self.q_sel;
+                        const eventfd = try std.os.eventfd(0, 0);
+                        kvm.addIOEventFd(self.start + c.VIRTIO_MMIO_QUEUE_NOTIFY, 4, eventfd, i) catch {
+                            self.not_support_ioeventfd = true;
+                        };
+                        const q = try virtio.Q.init(pfn, self.q_size, self.q_align, self.driver_features, self.q_page_sz, eventfd);
+                        self.vqs[i] = q;
                         try self.init_queue_proc(self, &self.vqs[self.q_sel].?);
                     } else {
                         self.vqs[self.q_sel].?.deinit();
@@ -143,10 +150,10 @@ pub const Dev = struct {
             },
             c.VIRTIO_MMIO_QUEUE_NOTIFY => switch (op) {
                 .Read => unreachable,
-                .Write => {
+                .Write => if (self.not_support_ioeventfd) {
                     const i = mem.readIntLittle(u32, data[0..4]);
                     try self.vqs[i].?.notifyAvail();
-                },
+                } else unreachable,
             },
             c.VIRTIO_MMIO_INTERRUPT_STATUS => switch (op) {
                 .Read => mem.writeIntLittle(u32, data[0..4], self.irq_status),
