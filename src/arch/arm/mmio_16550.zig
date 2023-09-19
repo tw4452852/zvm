@@ -11,7 +11,7 @@ const io = @import("../../io.zig");
 const gic = @import("gic.zig");
 const irq = @import("../../irq.zig");
 
-fn handle(offset: u64, op: io.Operation, len: u32, val: []u8) !void {
+fn handle(_: ?*anyopaque, offset: u64, op: io.Operation, len: u32, val: []u8) !void {
     return v8250.handle(@intCast(offset), op, 1, len, val[0..len]);
 }
 
@@ -22,7 +22,7 @@ pub fn create(dts: ?*anyopaque) !void {
     const irq_no = irq.alloc();
     const irqs = [_]u32{ libfdt.cpu_to_fdt32(gic.irq_type_spi), libfdt.cpu_to_fdt32(irq_no - gic.irq_spi_base), libfdt.cpu_to_fdt32(gic.irq_level_high) };
 
-    try mmio.register_handler(reg_base, reg_size, handle);
+    try mmio.register_handler(reg_base, reg_size, handle, null);
     v8250.setup_irq(irq_no);
 
     try check(libfdt.fdt_begin_node(dts, "serial"));

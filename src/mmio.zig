@@ -15,24 +15,27 @@ const limit = 32;
 var handler_array: [limit]H = undefined;
 var handlers: usize = 0;
 
+pub const Handler = *const fn (?*anyopaque, u64, io.Operation, u32, []u8) anyerror!void;
 const H = struct {
     start: u64,
     end: u64,
-    handle: *const fn (u64, io.Operation, u32, []u8) anyerror!void,
+    handle: Handler,
+    ctx: ?*anyopaque,
 };
 
-pub fn register_handler(start: u64, count: u64, h: *const fn (u64, io.Operation, u32, []u8) anyerror!void) !void {
+pub fn register_handler(start: u64, count: u64, h: Handler, ctx: ?*anyopaque) !void {
     if (handlers == limit) return error.NO_SPACE;
     handler_array[handlers] = .{
         .start = start,
         .end = start + count,
         .handle = h,
+        .ctx = ctx,
     };
     handlers += 1;
 }
 
 pub fn handle(addr: u64, op: io.Operation, len: u32, data: []u8) !void {
     for (handler_array[0..handlers]) |h| {
-        if (h.start <= addr and addr < h.end) return h.handle(addr - h.start, op, len, data);
+        if (h.start <= addr and addr < h.end) return h.handle(h.ctx, addr - h.start, op, len, data);
     }
 }
