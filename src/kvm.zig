@@ -166,14 +166,6 @@ pub fn setIrqLevel(irq: u32, level: u1) !void {
     try setIrqLevelInner(irq, level);
 }
 
-pub fn triggerIrq(irq: u32) !void {
-    irq_mutex.lock();
-    defer irq_mutex.unlock();
-
-    try setIrqLevelInner(irq, 1);
-    try setIrqLevelInner(irq, 0);
-}
-
 pub fn addIOEventFd(addr: u64, len: u32, fd: os.fd_t, datamatch: ?u64) !void {
     var ret = ioctl(f.handle, c.KVM_CHECK_EXTENSION, c.KVM_CAP_IOEVENTFD);
     if (os.linux.getErrno(ret) != .SUCCESS) {

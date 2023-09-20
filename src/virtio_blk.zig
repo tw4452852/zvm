@@ -86,7 +86,7 @@ fn blkio(dev: *virtio_mmio.Dev, q: *virtio.Q) !void {
         // notfiy guest if needed
         if (q.need_notify()) {
             dev.irq_status |= c.VIRTIO_MMIO_INT_VRING;
-            try kvm.triggerIrq(irq_line);
+            try dev.update_irq();
         }
     }
 }

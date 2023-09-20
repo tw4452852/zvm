@@ -68,6 +68,14 @@ pub const Dev = struct {
         self.init_queue_proc = init_fn;
     }
 
+    pub fn update_irq(self: *const Self) !void {
+        if (self.irq_status != 0) {
+            try kvm.setIrqLevel(self.irq, 1);
+        } else {
+            try kvm.setIrqLevel(self.irq, 0);
+        }
+    }
+
     pub fn handler(ctx: ?*anyopaque, offset: u64, op: io.Operation, len: u32, data: []u8) anyerror!void {
         var self: *Self = @alignCast(@ptrCast(ctx));
         try switch (offset) {
@@ -161,7 +169,10 @@ pub const Dev = struct {
             },
             c.VIRTIO_MMIO_INTERRUPT_ACK => switch (op) {
                 .Read => unreachable,
-                .Write => self.irq_status &= ~(mem.readIntLittle(u32, data[0..4])),
+                .Write => {
+                    self.irq_status &= ~(mem.readIntLittle(u32, data[0..4]));
+                    try self.update_irq();
+                },
             },
             else => self.specific_handler(self, offset, op, len, data),
         };
