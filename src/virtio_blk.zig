@@ -20,7 +20,7 @@ pub fn init(alloc: std.mem.Allocator, path: []const u8) !void {
     allocator = alloc;
     disk_file_path = path;
 
-    const device_features = (1 << c.VIRTIO_BLK_F_FLUSH) | (1 << c.VIRTIO_RING_F_EVENT_IDX) | (1 << c.VIRTIO_RING_F_INDIRECT_DESC);
+    const device_features = (1 << c.VIRTIO_BLK_F_FLUSH) | (1 << c.VIRTIO_RING_F_EVENT_IDX) | (1 << c.VIRTIO_RING_F_INDIRECT_DESC) | (1 << c.VIRTIO_F_VERSION_1);
     const dev = try virtio_mmio.register_dev(alloc, irq_line, mmio_rw);
     dev.set_device_features(device_features);
     dev.set_queue_init_proc(init_queue);
@@ -99,10 +99,12 @@ fn mmio_rw(_: *virtio_mmio.Dev, offset: u64, op: io.Operation, len: u32, data: [
     if (offset >= c.VIRTIO_MMIO_CONFIG) {
         const off = offset - c.VIRTIO_MMIO_CONFIG;
         const ptr: [*]u8 = @ptrCast(&config);
-        std.debug.assert(len == 1);
         switch (op) {
-            .Read => data[0] = (ptr + off)[0],
-            .Write => (ptr + off)[0] = data[0],
+            .Read => @memcpy(data[0..len], (ptr + off)[0..len]),
+            .Write => @memcpy((ptr + off)[0..len], data[0..len]),
         }
-    } else unreachable;
+    } else {
+        log.debug("unhandled offset: 0x{x} {}", .{ offset, op });
+        unreachable;
+    }
 }

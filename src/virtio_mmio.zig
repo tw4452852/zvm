@@ -40,6 +40,11 @@ pub const Dev = struct {
     init_queue_proc: *const fn (dev: *Self, q: *virtio.Q) anyerror!void = undefined,
     not_support_ioeventfd: bool = false,
 
+    // v2 only
+    descs_addr: u64 = undefined,
+    avail_addr: u64 = undefined,
+    used_addr: u64 = undefined,
+
     pub fn init(allocator: std.mem.Allocator, name: []const u8, irq: u32, start: u64, len: u64, next: ?*Dev, h: Handler) !*Self {
         const dev: Self = .{
             .name = name,
@@ -78,12 +83,12 @@ pub const Dev = struct {
 
     pub fn handler(ctx: ?*anyopaque, offset: u64, op: io.Operation, len: u32, data: []u8) anyerror!void {
         var self: *Self = @alignCast(@ptrCast(ctx));
-        try switch (offset) {
+        switch (offset) {
             c.VIRTIO_MMIO_MAGIC_VALUE => if (op == .Read) {
                 @memcpy(data.ptr, "virt");
             } else unreachable,
             c.VIRTIO_MMIO_VERSION => if (op == .Read) {
-                mem.writeIntLittle(u32, data[0..4], 1);
+                mem.writeIntLittle(u32, data[0..4], 2);
             } else unreachable,
             c.VIRTIO_MMIO_DEVICE_ID => if (op == .Read) {
                 mem.writeIntLittle(u32, data[0..4], c.VIRTIO_ID_BLOCK);
@@ -138,7 +143,7 @@ pub const Dev = struct {
             },
             c.VIRTIO_MMIO_QUEUE_PFN => switch (op) {
                 .Read => if (self.vqs[self.q_sel]) |q| {
-                    mem.writeIntLittle(u32, data[0..4], q.pfn);
+                    mem.writeIntLittle(u32, data[0..4], q.pfn.?);
                 } else mem.writeInt(u32, data[0..4], 0, .Little),
                 .Write => {
                     const pfn = mem.readIntLittle(u32, data[0..4]);
@@ -148,7 +153,7 @@ pub const Dev = struct {
                         kvm.addIOEventFd(self.start + c.VIRTIO_MMIO_QUEUE_NOTIFY, 4, eventfd, i) catch {
                             self.not_support_ioeventfd = true;
                         };
-                        const q = try virtio.Q.init(pfn, self.q_size, self.q_align, self.driver_features, self.q_page_sz, eventfd);
+                        const q = try virtio.Q.init(.{ .v1 = .{ .pfn = pfn } }, self.q_size, self.q_align, self.driver_features, self.q_page_sz, eventfd);
                         self.vqs[i] = q;
                         try self.init_queue_proc(self, &self.vqs[self.q_sel].?);
                     } else {
@@ -174,8 +179,79 @@ pub const Dev = struct {
                     try self.update_irq();
                 },
             },
-            else => self.specific_handler(self, offset, op, len, data),
-        };
+            c.VIRTIO_MMIO_QUEUE_DESC_LOW => switch (op) {
+                .Read => unreachable,
+                .Write => {
+                    self.descs_addr &= 0xffffffff_00000000;
+                    self.descs_addr |= mem.readIntLittle(u32, data[0..4]);
+                },
+            },
+            c.VIRTIO_MMIO_QUEUE_DESC_HIGH => switch (op) {
+                .Read => unreachable,
+                .Write => {
+                    self.descs_addr &= 0x00000000_ffffffff;
+                    self.descs_addr |= (@as(u64, mem.readIntLittle(u32, data[0..4])) << 32);
+                },
+            },
+            c.VIRTIO_MMIO_QUEUE_AVAIL_LOW => switch (op) {
+                .Read => unreachable,
+                .Write => {
+                    self.avail_addr &= 0xffffffff_00000000;
+                    self.avail_addr |= mem.readIntLittle(u32, data[0..4]);
+                },
+            },
+            c.VIRTIO_MMIO_QUEUE_AVAIL_HIGH => switch (op) {
+                .Read => unreachable,
+                .Write => {
+                    self.avail_addr &= 0x00000000_ffffffff;
+                    self.avail_addr |= (@as(u64, mem.readIntLittle(u32, data[0..4])) << 32);
+                },
+            },
+            c.VIRTIO_MMIO_QUEUE_USED_LOW => switch (op) {
+                .Read => unreachable,
+                .Write => {
+                    self.used_addr &= 0xffffffff_00000000;
+                    self.used_addr |= mem.readIntLittle(u32, data[0..4]);
+                },
+            },
+            c.VIRTIO_MMIO_QUEUE_USED_HIGH => switch (op) {
+                .Read => unreachable,
+                .Write => {
+                    self.used_addr &= 0x00000000_ffffffff;
+                    self.used_addr |= (@as(u64, mem.readIntLittle(u32, data[0..4])) << 32);
+                },
+            },
+            c.VIRTIO_MMIO_QUEUE_READY => switch (op) {
+                .Read => if (self.vqs[self.q_sel]) |q| {
+                    mem.writeIntLittle(u32, data[0..4], @intFromBool(q.ready));
+                } else mem.writeInt(u32, data[0..4], 0, .Little),
+                .Write => {
+                    const ready = mem.readIntLittle(u32, data[0..4]);
+                    if (ready > 0) {
+                        const i = self.q_sel;
+                        const eventfd = try std.os.eventfd(0, 0);
+                        kvm.addIOEventFd(self.start + c.VIRTIO_MMIO_QUEUE_NOTIFY, 4, eventfd, i) catch {
+                            self.not_support_ioeventfd = true;
+                        };
+                        const q = try virtio.Q.init(.{ .v2 = .{
+                            .descs_addr = self.descs_addr,
+                            .avail_addr = self.avail_addr,
+                            .used_addr = self.used_addr,
+                        } }, self.q_size, self.q_align, self.driver_features, self.q_page_sz, eventfd);
+                        self.vqs[i] = q;
+                        try self.init_queue_proc(self, &self.vqs[self.q_sel].?);
+                    } else {
+                        self.vqs[self.q_sel].?.deinit();
+                    }
+                },
+            },
+            c.VIRTIO_MMIO_CONFIG_GENERATION => switch (op) {
+                .Read => mem.writeIntLittle(u32, data[0..4], 0), // TODO: support version generation
+                .Write => unreachable,
+            },
+
+            else => try self.specific_handler(self, offset, op, len, data),
+        }
     }
 };
 
