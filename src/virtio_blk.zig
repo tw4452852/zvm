@@ -80,7 +80,7 @@ fn blkio(dev: *virtio_mmio.Dev, q: *virtio.Q) !void {
             //log.info("{} from:0x{x}, len:0x{x}\n", .{ t, off, @truncate(c_uint, len) });
             q.putUsed(.{
                 .id = desc0.id,
-                .len = @truncate(len),
+                .len = @as(c_uint, @intCast(len)),
             });
         }
         // notfiy guest if needed

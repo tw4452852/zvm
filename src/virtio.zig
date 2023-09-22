@@ -9,22 +9,11 @@ const fs = std.fs;
 const os = std.os;
 
 pub const Q = struct {
-    pfn: ?u32,
-    size: u32, // number of elements in the queue
-    ring: c.vring,
-    last_avail: u16 = 0,
-    last_used_signalled: u16 = 0,
+    ring: union(enum) {
+        split: SplitQ,
+        pack: PackedQ,
+    },
     eventfd: fs.File,
-    support_event_idx: bool,
-    ready: bool = false,
-
-    // packed layout related
-    support_packed_layout: bool,
-
-    pub const Version = enum {
-        v1,
-        v2,
-    };
 
     pub const InitV1 = struct {
         pfn: u32,
@@ -36,7 +25,7 @@ pub const Q = struct {
         used_addr: u64,
     };
 
-    pub const InitVersion = union(Version) {
+    pub const InitVersion = union(enum) {
         v1: InitV1,
         v2: InitV2,
     };
@@ -50,35 +39,21 @@ pub const Q = struct {
     const Self = @This();
 
     pub fn init(ver: InitVersion, size: u32, alignment: u32, features: u64, specified_page_size: ?u32, eventfd: os.fd_t) !Self {
-        const ram = kvm.getMem();
-
-        var ring: c.vring = undefined;
-        var pfn: ?u32 = null;
-        switch (ver) {
-            Version.v1 => |args| {
-                pfn = args.pfn;
-                const offset = args.pfn * if (specified_page_size) |page_sz| page_sz else mem.page_size;
-                c.vring_init(&ring, size, ram.ptr + offset, alignment);
-            },
-            Version.v2 => |args| {
-                c.vring_init(&ring, size, ram.ptr + args.descs_addr, alignment);
-                ring.avail = @alignCast(@ptrCast(ram.ptr + args.avail_addr));
-                ring.used = @alignCast(@ptrCast(ram.ptr + args.used_addr));
-            },
-        }
+        const use_packed = (features & (1 << c.VIRTIO_F_RING_PACKED)) != 0;
+        const support_event_idx = (features & (1 << c.VIRTIO_RING_F_EVENT_IDX)) != 0;
 
         const f: fs.File = .{
             .handle = eventfd,
             .capable_io_mode = .blocking,
             .intended_io_mode = .blocking,
         };
+
         return Self{
-            .size = size,
-            .ring = ring,
+            .ring = if (use_packed)
+                .{ .pack = try PackedQ.init(ver, size, alignment, specified_page_size, support_event_idx) }
+            else
+                .{ .split = try SplitQ.init(ver, size, alignment, specified_page_size, support_event_idx) },
             .eventfd = f,
-            .support_event_idx = (features & (1 << c.VIRTIO_RING_F_EVENT_IDX)) != 0,
-            .support_packed_layout = (features & (1 << c.VIRTIO_F_RING_PACKED)) != 0,
-            .pfn = pfn,
         };
     }
 
@@ -100,19 +75,107 @@ pub const Q = struct {
     }
 
     pub fn getAvail(self: *Self) ?Desc {
-        if (self.support_packed_layout) {
-            return self.getPackedAvail();
-        } else {
-            return self.getSplitAvail();
+        switch (self.ring) {
+            .split => |*r| return r.getAvail(),
+            .pack => |*r| return r.getAvail(),
         }
     }
 
-    fn getPackedAvail(self: *Self) ?Desc {
+    pub fn getNext(self: *const Self, d: Desc) ?Desc {
+        switch (self.ring) {
+            .split => |*r| return r.getNext(d),
+            .pack => |*r| return r.getNext(d),
+        }
+    }
+
+    pub fn putUsed(self: *Self, used: anytype) void {
+        switch (self.ring) {
+            .split => |*r| return r.putUsed(.{ .id = used.id, .len = used.len }),
+            .pack => |*r| return r.putUsed(.{ .id = used.id, .len = used.len }),
+        }
+    }
+
+    pub fn need_notify(self: *Self) bool {
+        switch (self.ring) {
+            .split => |*r| return r.need_notify(),
+            .pack => |*r| return r.need_notify(),
+        }
+    }
+};
+
+const PackedQ = struct {
+    const Self = @This();
+
+    ready: bool = false,
+
+    pub fn init(ver: Q.InitVersion, size: u32, alignment: u32, specified_page_size: ?u32, support_event_idx: bool) !Self {
+        _ = ver;
+        _ = size;
+        _ = alignment;
+        _ = specified_page_size;
+        _ = support_event_idx;
+
+        @panic("todo");
+    }
+
+    pub fn getAvail(self: *Self) ?Q.Desc {
         _ = self;
         @panic("todo");
     }
 
-    fn getSplitAvail(self: *Self) ?Desc {
+    pub fn getNext(self: *const Self, d: Q.Desc) ?Q.Desc {
+        _ = self;
+        _ = d;
+        @panic("todo");
+    }
+
+    pub fn putUsed(self: *Self, used: c.vring_used_elem) void {
+        _ = self;
+        _ = used;
+        @panic("todo");
+    }
+
+    pub fn need_notify(self: *const Self) bool {
+        _ = self;
+        @panic("todo");
+    }
+};
+
+const SplitQ = struct {
+    const Self = @This();
+
+    pfn: ?u32,
+    ring: c.vring,
+    last_avail: u16 = 0,
+    last_used_signalled: u16 = 0,
+    support_event_idx: bool,
+
+    pub fn init(ver: Q.InitVersion, size: u32, alignment: u32, specified_page_size: ?u32, support_event_idx: bool) !Self {
+        var ring: c.vring = undefined;
+        const ram = kvm.getMem();
+
+        var pfn: ?u32 = null;
+        switch (ver) {
+            .v1 => |args| {
+                pfn = args.pfn;
+                const offset = args.pfn * if (specified_page_size) |page_sz| page_sz else mem.page_size;
+                c.vring_init(&ring, size, ram.ptr + offset, alignment);
+            },
+            .v2 => |args| {
+                c.vring_init(&ring, size, ram.ptr + args.descs_addr, alignment);
+                ring.avail = @alignCast(@ptrCast(ram.ptr + args.avail_addr));
+                ring.used = @alignCast(@ptrCast(ram.ptr + args.used_addr));
+            },
+        }
+
+        return Self{
+            .ring = ring,
+            .pfn = pfn,
+            .support_event_idx = support_event_idx,
+        };
+    }
+
+    fn getAvail(self: *Self) ?Q.Desc {
         if (self.ring.avail == null) return null;
         if (self.support_event_idx) @as(*volatile u16, @ptrCast(self.ring.used.*.ring() + self.ring.num)).* = self.last_avail;
         if (self.last_avail == self.ring.avail.*.idx) return null;
@@ -120,7 +183,7 @@ pub const Q = struct {
 
         defer self.last_avail +%= 1;
         const i = self.ring.avail.*.ring()[self.last_avail % self.ring.num];
-        const d = Desc{
+        const d = Q.Desc{
             .id = i,
             .desc = self.ring.desc[i],
             .table = null,
@@ -136,12 +199,12 @@ pub const Q = struct {
         //std.debug.print("put {}\n", .{i +% 1});
     }
 
-    pub fn getNext(self: *const Self, d: Desc) ?Desc {
+    pub fn getNext(self: *const Self, d: Q.Desc) ?Q.Desc {
         if (d.desc.flags & c.VRING_DESC_F_INDIRECT != 0) {
             const max = d.desc.len / @sizeOf(c.vring_desc);
             const ram = kvm.getMem();
             const table = @as([*]c.vring_desc, @alignCast(@ptrCast(ram.ptr + d.desc.addr)))[0..max];
-            return Desc{
+            return .{
                 .id = d.id,
                 .desc = table[0],
                 .table = table,

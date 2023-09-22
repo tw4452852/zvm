@@ -143,7 +143,7 @@ pub const Dev = struct {
             },
             c.VIRTIO_MMIO_QUEUE_PFN => switch (op) {
                 .Read => if (self.vqs[self.q_sel]) |q| {
-                    mem.writeIntLittle(u32, data[0..4], q.pfn.?);
+                    mem.writeIntLittle(u32, data[0..4], q.ring.split.pfn.?);
                 } else mem.writeInt(u32, data[0..4], 0, .Little),
                 .Write => {
                     const pfn = mem.readIntLittle(u32, data[0..4]);
@@ -223,7 +223,7 @@ pub const Dev = struct {
             },
             c.VIRTIO_MMIO_QUEUE_READY => switch (op) {
                 .Read => if (self.vqs[self.q_sel]) |q| {
-                    mem.writeIntLittle(u32, data[0..4], @intFromBool(q.ready));
+                    mem.writeIntLittle(u32, data[0..4], @intFromBool(q.ring.pack.ready));
                 } else mem.writeInt(u32, data[0..4], 0, .Little),
                 .Write => {
                     const ready = mem.readIntLittle(u32, data[0..4]);
