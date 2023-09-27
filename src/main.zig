@@ -4,20 +4,25 @@ const os = std.os;
 const mem = std.mem;
 const process = std.process;
 const fmt = std.fmt;
-pub const c = @cImport({
-    @cInclude("linux/kvm.h");
-    @cInclude("linux/kvm_para.h");
-    @cInclude("sys/mman.h");
-});
 const Arch = @import("arch/index.zig").Arch;
 const portio = @import("portio.zig");
 const stdio = @import("stdio.zig");
 const vcpu = @import("vcpu.zig");
 const virtio_blk = @import("virtio_blk.zig");
+const virtio_net = @import("virtio_net.zig");
+
 pub const kvm = @import("kvm.zig");
 pub const mmio = @import("mmio.zig");
 pub const virtio_mmio = @import("virtio_mmio.zig");
 pub const Cmdline = std.BoundedArray(u8, 512);
+pub const c = @cImport({
+    @cInclude("linux/kvm.h");
+    @cInclude("linux/kvm_para.h");
+    @cInclude("sys/mman.h");
+    @cInclude("linux/if_tun.h");
+    @cInclude("linux/if.h");
+    @cInclude("linux/sockios.h");
+});
 
 pub var enable_debug = false;
 
@@ -33,8 +38,27 @@ fn usage() !void {
         \\ -m [memory size, support K/M/G]
         \\ -c [number of core]
         \\ -debug
+        \\ -n # enable virtio-net
     , .{});
     return error.USAGE;
+}
+
+fn interrupt_handler(_: c_int) callconv(.C) void {
+    log.info("interrupted, exiting...", .{});
+    stdio.stopCapture();
+    virtio_net.deinit();
+
+    log.info("done", .{});
+    os.exit(0);
+}
+
+fn setup_ctrl_c() !void {
+    const act = os.Sigaction{
+        .handler = .{ .handler = interrupt_handler },
+        .mask = os.empty_sigset,
+        .flags = 0,
+    };
+    try os.sigaction(os.SIG.INT, &act, null);
 }
 
 pub fn main() anyerror!void {
@@ -50,6 +74,7 @@ pub fn main() anyerror!void {
     var blk_file_path: ?[]const u8 = null;
     var cmdline = try Cmdline.fromSlice("console=ttyS0 panic=1");
     var ram_size: usize = 0x100_00000; // 256M
+    var enable_virtio_net = false;
 
     var num_cores: u8 = 1;
     while (nextArg(args, &arg_idx)) |arg| {
@@ -78,6 +103,8 @@ pub fn main() anyerror!void {
             }
         } else if (mem.eql(u8, arg, "-debug")) {
             enable_debug = true;
+        } else if (mem.eql(u8, arg, "-n")) {
+            enable_virtio_net = true;
         } else if (mem.eql(u8, arg, "-b")) {
             blk_file_path = nextArg(args, &arg_idx) orelse {
                 return usage();
@@ -117,12 +144,16 @@ pub fn main() anyerror!void {
     }
     defer if (blk_file_path != null) virtio_blk.deinit();
 
+    if (enable_virtio_net) try virtio_net.init(allocator);
+
     // load kernel into user memory
     try Arch.load_kernel(kernel_file_path.?, &cmdline, initrd_file_path);
 
     // forward stdin to guest
     try stdio.startCapture();
     defer stdio.stopCapture();
+
+    try setup_ctrl_c();
 
     // create vcpus and start them
     try vcpu.createAndStartCpus(num_cores);

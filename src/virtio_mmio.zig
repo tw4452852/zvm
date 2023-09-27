@@ -5,9 +5,6 @@ const virtio = @import("virtio.zig");
 const fmt = std.fmt;
 pub const c = @cImport({
     @cInclude("linux/virtio_mmio.h");
-    @cInclude("linux/virtio_ids.h");
-    @cInclude("linux/virtio_blk.h");
-    @cInclude("linux/virtio_ring.h");
 });
 const mem = std.mem;
 const kvm = @import("root").kvm;
@@ -31,7 +28,7 @@ pub const Dev = struct {
     driver_feature_sel: u32 = undefined,
     driver_features: u64 = 0,
     device_features: u64 = 0,
-    vqs: [1]?virtio.Q = .{null},
+    vqs: [256]?virtio.Q = .{null} ** 256,
     q_size: u32 = undefined,
     q_align: u32 = undefined,
     q_sel: u32 = undefined,
@@ -89,9 +86,6 @@ pub const Dev = struct {
             } else unreachable,
             c.VIRTIO_MMIO_VERSION => if (op == .Read) {
                 mem.writeIntLittle(u32, data[0..4], 2);
-            } else unreachable,
-            c.VIRTIO_MMIO_DEVICE_ID => if (op == .Read) {
-                mem.writeIntLittle(u32, data[0..4], c.VIRTIO_ID_BLOCK);
             } else unreachable,
             c.VIRTIO_MMIO_VENDOR_ID => if (op == .Read) {
                 mem.writeIntLittle(u32, data[0..4], 0x12345678);
@@ -154,6 +148,7 @@ pub const Dev = struct {
                             self.not_support_ioeventfd = true;
                         };
                         const q = try virtio.Q.init(.{ .v1 = .{ .pfn = pfn } }, self.q_size, self.q_align, self.driver_features, self.q_page_sz, eventfd);
+
                         self.vqs[i] = q;
                         try self.init_queue_proc(self, &self.vqs[self.q_sel].?);
                     } else {

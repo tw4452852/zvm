@@ -141,29 +141,33 @@ pub fn getRun(vcpu: os.fd_t) ![]align(4096) u8 {
 
 var irq_mutex = std.Thread.Mutex{};
 
-const setIrqLevelInner = if (hasFn("setIrqLevelInner")(Arch)) Arch.setIrqLevelInner else blk: {
-    const S = struct {
-        pub fn setIrqLevelInner(irq: u32, level: u1) !void {
-            const irq_level: c.kvm_irq_level = .{ .unnamed_0 = .{
-                .irq = irq,
-            }, .level = level };
+const setIrqLevelInner = if (hasFn("setIrqLevelInner")(Arch)) Arch.setIrqLevelInner else struct {
+    pub fn setIrqLevelInner(irq: u32, level: u1) !void {
+        const irq_level: c.kvm_irq_level = .{ .unnamed_0 = .{
+            .irq = irq,
+        }, .level = level };
 
-            const ret = ioctl(vm, c.KVM_IRQ_LINE, @intFromPtr(&irq_level));
-            //log.info("tw; set irq{}, level = {}", .{ irq_level.unnamed_0.irq, irq_level.level });
-            if (os.linux.getErrno(ret) != .SUCCESS) {
-                log.err("failed to set irq{}, level{}: {}", .{ irq, level, os.linux.getErrno(ret) });
-                return error.IRQ;
-            }
+        const ret = ioctl(vm, c.KVM_IRQ_LINE, @intFromPtr(&irq_level));
+        //log.info("tw; set irq{}, level = {}", .{ irq_level.unnamed_0.irq, irq_level.level });
+        if (os.linux.getErrno(ret) != .SUCCESS) {
+            log.err("failed to set irq{}, level{}: {}", .{ irq, level, os.linux.getErrno(ret) });
+            return error.IRQ;
         }
-    };
-
-    break :blk S.setIrqLevelInner;
-};
+    }
+}.setIrqLevelInner;
 
 pub fn setIrqLevel(irq: u32, level: u1) !void {
     irq_mutex.lock();
     defer irq_mutex.unlock();
     try setIrqLevelInner(irq, level);
+}
+
+pub fn triggerIrq(irq: u32) !void {
+    irq_mutex.lock();
+    defer irq_mutex.unlock();
+
+    try setIrqLevelInner(irq, 1);
+    try setIrqLevelInner(irq, 0);
 }
 
 pub fn addIOEventFd(addr: u64, len: u32, fd: os.fd_t, datamatch: ?u64) !void {
@@ -185,5 +189,27 @@ pub fn addIOEventFd(addr: u64, len: u32, fd: os.fd_t, datamatch: ?u64) !void {
     if (os.linux.getErrno(ret) != .SUCCESS) {
         log.err("failed to add ioeventfd: {}", .{os.linux.getErrno(ret)});
         return error.IOEVENTFD;
+    }
+}
+
+pub fn addIrqFd(gsi: u32, fd: os.fd_t, resample_fd: ?os.fd_t) !void {
+    var ret = ioctl(f.handle, c.KVM_CHECK_EXTENSION, c.KVM_CAP_IRQFD);
+    if (os.linux.getErrno(ret) != .SUCCESS) {
+        log.err("don't support irqfd", .{});
+        return error.NOT_SUPPORT;
+    }
+
+    const irqfd: c.kvm_irqfd = .{
+        .fd = @bitCast(fd),
+        .gsi = gsi,
+        .flags = if (resample_fd != null) c.KVM_IRQFD_FLAG_RESAMPLE else 0,
+        .resamplefd = if (resample_fd) |rfd| @bitCast(rfd) else 0,
+        .pad = .{0} ** 16,
+    };
+
+    ret = ioctl(vm, c.KVM_IRQFD, @intFromPtr(&irqfd));
+    if (os.linux.getErrno(ret) != .SUCCESS) {
+        log.err("failed to add irqfd: {}", .{os.linux.getErrno(ret)});
+        return error.IRQFD;
     }
 }

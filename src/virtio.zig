@@ -1,8 +1,12 @@
 const std = @import("std");
 const mem = std.mem;
-const c = @cImport({
+pub const c = @cImport({
     @cInclude("linux/virtio_ring.h");
     @cInclude("linux/virtio_config.h");
+    @cInclude("linux/virtio_blk.h");
+    @cInclude("linux/virtio_net.h");
+    @cInclude("linux/virtio_ids.h");
+    @cInclude("linux/vhost.h");
 });
 const kvm = @import("root").kvm;
 const fs = std.fs;
@@ -14,6 +18,7 @@ pub const Q = struct {
         pack: PackedQ,
     },
     eventfd: fs.File,
+    size: u32,
 
     pub const InitV1 = struct {
         pfn: u32,
@@ -50,10 +55,11 @@ pub const Q = struct {
 
         return Self{
             .ring = if (use_packed)
-                .{ .pack = try PackedQ.init(ver, size, alignment, specified_page_size, support_event_idx) }
+                .{ .pack = try PackedQ.init(ver.v2, size, alignment, specified_page_size, support_event_idx) }
             else
                 .{ .split = try SplitQ.init(ver, size, alignment, specified_page_size, support_event_idx) },
             .eventfd = f,
+            .size = size,
         };
     }
 
@@ -108,7 +114,7 @@ const PackedQ = struct {
 
     ready: bool = false,
 
-    pub fn init(ver: Q.InitVersion, size: u32, alignment: u32, specified_page_size: ?u32, support_event_idx: bool) !Self {
+    pub fn init(ver: Q.InitV2, size: u32, alignment: u32, specified_page_size: ?u32, support_event_idx: bool) !Self {
         _ = ver;
         _ = size;
         _ = alignment;
