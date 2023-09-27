@@ -26,3 +26,15 @@ You could also specify the kernel cmdline:
 ```
 zvm -kernel /path/to/bzImage -cmdline "console=ttyS0 ..."
 ```
+
+Attach a disk:
+
+```
+zvm -kernel /path/to/bzImage -b /path/to/disk.img
+```
+
+Attach a NIC:
+
+```
+zvm -kernel /path/to/bzImage -n
+```
