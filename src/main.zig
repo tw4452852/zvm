@@ -145,6 +145,7 @@ pub fn main() anyerror!void {
     defer if (blk_file_path != null) virtio_blk.deinit();
 
     if (enable_virtio_net) try virtio_net.init(allocator);
+    defer if (enable_virtio_net) virtio_net.deinit();
 
     // load kernel into user memory
     try Arch.load_kernel(kernel_file_path.?, &cmdline, initrd_file_path);

@@ -15,14 +15,13 @@ const ioctl = os.linux.ioctl;
 const check = @import("helpers.zig").check_non_zero;
 
 var allocator: mem.Allocator = undefined;
-var tap_f: fs.File = undefined;
-var vhost_f: fs.File = undefined;
-var irq_line: u8 = undefined;
+var tap_f: ?fs.File = null;
+var vhost_f: ?fs.File = null;
 
 const use_packed = false;
 
 pub fn init(alloc: std.mem.Allocator) !void {
-    irq_line = irq.alloc();
+    const irq_line = irq.alloc();
     allocator = alloc;
 
     const device_features =
@@ -54,7 +53,7 @@ fn init_vhost() !void {
     vhost_f = try fs.cwd().openFile("/dev/vhost-net", .{
         .mode = .read_write,
     });
-    errdefer vhost_f.close();
+    errdefer vhost_f.?.close();
 
     var mem_regions: extern struct {
         mem: virtio.c.vhost_memory,
@@ -69,29 +68,29 @@ fn init_vhost() !void {
         }},
     };
 
-    try check(ioctl(vhost_f.handle, virtio.c.VHOST_SET_OWNER, 0));
-    try check(ioctl(vhost_f.handle, virtio.c.VHOST_SET_MEM_TABLE, @intFromPtr(&mem_regions)));
+    try check(ioctl(vhost_f.?.handle, virtio.c.VHOST_SET_OWNER, 0));
+    try check(ioctl(vhost_f.?.handle, virtio.c.VHOST_SET_MEM_TABLE, @intFromPtr(&mem_regions)));
 
     const features: u64 =
         (1 << virtio.c.VIRTIO_RING_F_EVENT_IDX) |
         (1 << virtio.c.VIRTIO_NET_F_MRG_RXBUF);
-    try check(ioctl(vhost_f.handle, virtio.c.VHOST_SET_FEATURES, @intFromPtr(&features)));
+    try check(ioctl(vhost_f.?.handle, virtio.c.VHOST_SET_FEATURES, @intFromPtr(&features)));
 }
 
 fn create_tap() !void {
     tap_f = try fs.cwd().openFile("/dev/net/tun", .{
         .mode = .read_write,
     });
-    errdefer tap_f.close();
+    errdefer tap_f.?.close();
 
     var ifr = mem.zeroes(c.ifreq);
     ifr.ifr_ifru.ifru_flags = c.IFF_TAP | c.IFF_NO_PI | c.IFF_VNET_HDR;
-    try check(ioctl(tap_f.handle, c.TUNSETIFF, @intFromPtr(&ifr)));
+    try check(ioctl(tap_f.?.handle, c.TUNSETIFF, @intFromPtr(&ifr)));
 
-    try check(ioctl(tap_f.handle, c.TUNSETOFFLOAD, c.TUN_F_CSUM | c.TUN_F_TSO4 | c.TUN_F_TSO6));
+    try check(ioctl(tap_f.?.handle, c.TUNSETOFFLOAD, c.TUN_F_CSUM | c.TUN_F_TSO4 | c.TUN_F_TSO6));
 
     const hdr_len: c_int = @sizeOf(virtio.c.virtio_net_hdr_mrg_rxbuf);
-    try check(ioctl(tap_f.handle, c.TUNSETVNETHDRSZ, @intFromPtr(&hdr_len)));
+    try check(ioctl(tap_f.?.handle, c.TUNSETVNETHDRSZ, @intFromPtr(&hdr_len)));
 
     const ipaddr = try std.net.Address.parseIp4("192.168.66.1", 0);
     const sock = try os.socket(ipaddr.any.family, os.SOCK.DGRAM, 0);
@@ -115,16 +114,15 @@ fn init_queue(dev: *virtio_mmio.Dev, q: *virtio.Q) !void {
         if (@intFromPtr(vq) == @intFromPtr(q)) {
             switch (i) {
                 0, 1 => {
-
                     // setup vhost for rx/tx queue
                     var state: virtio.c.vhost_vring_state = .{
                         .index = @intCast(i),
                         .num = q.size,
                     };
-                    try check(ioctl(vhost_f.handle, virtio.c.VHOST_SET_VRING_NUM, @intFromPtr(&state)));
+                    try check(ioctl(vhost_f.?.handle, virtio.c.VHOST_SET_VRING_NUM, @intFromPtr(&state)));
 
                     state.num = 0;
-                    try check(ioctl(vhost_f.handle, virtio.c.VHOST_SET_VRING_BASE, @intFromPtr(&state)));
+                    try check(ioctl(vhost_f.?.handle, virtio.c.VHOST_SET_VRING_BASE, @intFromPtr(&state)));
 
                     const addr: virtio.c.vhost_vring_addr = .{
                         .index = @intCast(i),
@@ -134,24 +132,24 @@ fn init_queue(dev: *virtio_mmio.Dev, q: *virtio.Q) !void {
                         .flags = 0,
                         .log_guest_addr = 0,
                     };
-                    try check(ioctl(vhost_f.handle, virtio.c.VHOST_SET_VRING_ADDR, @intFromPtr(&addr)));
+                    try check(ioctl(vhost_f.?.handle, virtio.c.VHOST_SET_VRING_ADDR, @intFromPtr(&addr)));
 
                     var file: virtio.c.vhost_vring_file = .{
                         .index = @intCast(i),
                         .fd = q.eventfd.handle,
                     };
-                    try check(ioctl(vhost_f.handle, virtio.c.VHOST_SET_VRING_KICK, @intFromPtr(&file)));
+                    try check(ioctl(vhost_f.?.handle, virtio.c.VHOST_SET_VRING_KICK, @intFromPtr(&file)));
 
                     const eventfd = try std.os.eventfd(0, 0);
-                    if (true) {
-                        const handle = try Thread.spawn(.{}, call_poll, .{ dev, eventfd });
-                        handle.detach();
-                    } else try kvm.addIrqFd(irq_line, eventfd, null);
-                    file.fd = eventfd;
-                    try check(ioctl(vhost_f.handle, virtio.c.VHOST_SET_VRING_CALL, @intFromPtr(&file)));
 
-                    file.fd = tap_f.handle;
-                    try check(ioctl(vhost_f.handle, virtio.c.VHOST_NET_SET_BACKEND, @intFromPtr(&file)));
+                    const handle = try Thread.spawn(.{}, call_poll, .{ dev, eventfd });
+                    handle.detach();
+
+                    file.fd = eventfd;
+                    try check(ioctl(vhost_f.?.handle, virtio.c.VHOST_SET_VRING_CALL, @intFromPtr(&file)));
+
+                    file.fd = tap_f.?.handle;
+                    try check(ioctl(vhost_f.?.handle, virtio.c.VHOST_NET_SET_BACKEND, @intFromPtr(&file)));
                 },
                 2 => {
                     // polling for ctrl queue
@@ -211,8 +209,8 @@ fn ctrl_io(dev: *virtio_mmio.Dev, q: *virtio.Q) !void {
 }
 
 pub fn deinit() void {
-    tap_f.close();
-    vhost_f.close();
+    if (tap_f) |f| f.close();
+    if (vhost_f) |f| f.close();
 }
 
 var config = mem.zeroInit(virtio.c.virtio_net_config, .{
