@@ -11,6 +11,7 @@ const vcpu = @import("vcpu.zig");
 const virtio_blk = @import("virtio_blk.zig");
 const virtio_net = @import("virtio_net.zig");
 
+pub const pci = @import("pci.zig");
 pub const kvm = @import("kvm.zig");
 pub const mmio = @import("mmio.zig");
 pub const virtio_mmio = @import("virtio_mmio.zig");
@@ -138,6 +139,9 @@ pub fn main() anyerror!void {
 
     // init vm
     try Arch.init_vm(num_cores);
+
+    try pci.init();
+    defer pci.deinit();
 
     if (blk_file_path) |path| {
         try virtio_blk.init(allocator, path);
