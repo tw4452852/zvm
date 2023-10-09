@@ -7,8 +7,12 @@ pub const GAP_START = (1 << 32) - GAP_SIZE;
 const min_alignment = (1 << 12); // one page
 var free_start: u64 = GAP_START;
 pub fn alloc_space(size: u64) u64 {
-    defer free_start += size;
-    return std.mem.alignForward(u64, free_start, min_alignment);
+    const ret = std.mem.alignForward(u64, free_start, min_alignment);
+
+    free_start = ret + size;
+    if (free_start >= GAP_START + GAP_SIZE) @panic("no enough MMIO space");
+
+    return ret;
 }
 
 const limit = 32;
