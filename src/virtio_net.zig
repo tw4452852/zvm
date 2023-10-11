@@ -173,8 +173,7 @@ fn call_poll(dev: *virtio_mmio.Dev, eventfd: os.fd_t) !void {
     while (true) {
         const n = try reader.readIntNative(u64);
         if (n > 0) {
-            dev.irq_status |= virtio_mmio.c.VIRTIO_MMIO_INT_VRING;
-            try dev.update_irq();
+            try dev.assert_ring_irq();
         }
     }
 }
@@ -202,8 +201,7 @@ fn ctrl_io(dev: *virtio_mmio.Dev, q: *virtio.Q) !void {
 
         // notfiy guest if needed
         if (q.need_notify()) {
-            dev.irq_status |= virtio_mmio.c.VIRTIO_MMIO_INT_VRING;
-            try dev.update_irq();
+            try dev.assert_ring_irq();
         }
     }
 }

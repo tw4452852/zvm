@@ -1,6 +1,7 @@
 const std = @import("std");
 const virtio = @import("virtio.zig");
 const virtio_mmio = @import("virtio_mmio.zig");
+const virtio_pci = @import("virtio_pci.zig");
 const io = @import("io.zig");
 const irq = @import("irq.zig");
 const mem = std.mem;
@@ -14,6 +15,7 @@ var allocator: mem.Allocator = undefined;
 var disk_file_path: []const u8 = undefined;
 
 const use_packed = false;
+const transport = virtio_pci;
 
 pub fn init(alloc: std.mem.Allocator, path: []const u8) !void {
     const irq_line = irq.alloc();
@@ -21,7 +23,7 @@ pub fn init(alloc: std.mem.Allocator, path: []const u8) !void {
     disk_file_path = path;
 
     const device_features = (1 << virtio.c.VIRTIO_BLK_F_FLUSH) | (1 << virtio.c.VIRTIO_RING_F_EVENT_IDX) | (1 << virtio.c.VIRTIO_RING_F_INDIRECT_DESC) | (1 << virtio.c.VIRTIO_F_VERSION_1) | if (use_packed) (1 << virtio.c.VIRTIO_F_RING_PACKED) else 0;
-    const dev = try virtio_mmio.register_dev(alloc, irq_line, mmio_rw);
+    const dev = try transport.register_blk_dev(alloc, irq_line, mmio_rw);
     dev.set_device_features(device_features);
     dev.set_queue_init_proc(init_queue);
 
@@ -29,12 +31,12 @@ pub fn init(alloc: std.mem.Allocator, path: []const u8) !void {
     config.capacity = stat.size / 512;
 }
 
-fn init_queue(dev: *virtio_mmio.Dev, q: *virtio.Q) !void {
+fn init_queue(dev: *transport.Dev, q: *virtio.Q) !void {
     const handle = try Thread.spawn(.{}, blkio, .{ dev, q });
     handle.detach();
 }
 
-fn blkio(dev: *virtio_mmio.Dev, q: *virtio.Q) !void {
+fn blkio(dev: *transport.Dev, q: *virtio.Q) !void {
     const ram = kvm.getMem();
     const f = try fs.cwd().openFile(disk_file_path, .{ .mode = .read_write });
     defer f.close();
@@ -85,8 +87,7 @@ fn blkio(dev: *virtio_mmio.Dev, q: *virtio.Q) !void {
         }
         // notfiy guest if needed
         if (q.need_notify()) {
-            dev.irq_status |= virtio_mmio.c.VIRTIO_MMIO_INT_VRING;
-            try dev.update_irq();
+            try dev.assert_ring_irq();
         }
     }
 }
@@ -95,7 +96,7 @@ pub fn deinit() void {}
 
 var config = mem.zeroes(virtio.c.virtio_blk_config);
 
-fn mmio_rw(_: *virtio_mmio.Dev, offset: u64, op: io.Operation, len: u32, data: []u8) anyerror!void {
+fn mmio_rw(_: *transport.Dev, offset: u64, op: io.Operation, len: u32, data: []u8) anyerror!void {
     switch (offset) {
         virtio_mmio.c.VIRTIO_MMIO_DEVICE_ID => if (op == .Read) {
             mem.writeIntLittle(u32, data[0..4], virtio.c.VIRTIO_ID_BLOCK);

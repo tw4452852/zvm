@@ -41,5 +41,8 @@ pub fn register_handler(start: u64, count: u64, h: Handler, ctx: ?*anyopaque) !v
 pub fn handle(addr: u64, op: io.Operation, len: u32, data: []u8) !void {
     for (handler_array[0..handlers]) |h| {
         if (h.start <= addr and addr < h.end) return h.handle(h.ctx, addr - h.start, op, len, data);
-    } else unreachable;
+    } else {
+        std.log.err("unhandled {} {any}@0x{x}", .{ op, data[0..len], addr });
+        unreachable;
+    }
 }

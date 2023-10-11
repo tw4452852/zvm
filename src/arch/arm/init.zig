@@ -7,7 +7,7 @@ const kvm = root.kvm;
 const c = root.c;
 const ioctl = os.linux.ioctl;
 const mmio = root.mmio;
-const pci = root.pci;
+const pci = @import("pci.zig");
 const virtio_mmio = root.virtio_mmio;
 const libfdt = @cImport({
     @cInclude("libfdt.h");
@@ -192,7 +192,7 @@ pub fn load_kernel(kernel_path: []const u8, cmd: *const root.Cmdline, initrd_pat
         try check(libfdt.fdt_end_node(&dts));
     }
 
-    try generate_pci_node();
+    try pci.generate_fdt_node(&dts);
 
     // load dtb, dtb should be finalized at this point
     try check(libfdt.fdt_end_node(&dts)); // end top level node
@@ -202,23 +202,6 @@ pub fn load_kernel(kernel_path: []const u8, cmd: *const root.Cmdline, initrd_pat
     log.info("load dtb to 0x{x}", .{dtb_addr});
 
     try std.fs.cwd().writeFile("dtb", (ram.ptr + dtb_addr)[0..max_dtb_size]);
-}
-
-fn generate_pci_node() !void {
-    const bug_range = [_]u32{ libfdt.cpu_to_fdt32(0), libfdt.cpu_to_fdt32(0) };
-    const cfg_reg = [_]u64{ libfdt.cpu_to_fdt64(pci.cfg_start.?), libfdt.cpu_to_fdt64(pci.cfg_size) };
-
-    try check(libfdt.fdt_begin_node(&dts, "pci"));
-
-    try check(libfdt.fdt_property(&dts, "device_type", "pci", "pci".len + 1));
-    try check(libfdt.fdt_property(&dts, "compatible", "pci-host-ecam-generic", "pci-host-ecam-generic".len + 1));
-    try check(libfdt.fdt_property_cell(&dts, "#address-cells", 3));
-    try check(libfdt.fdt_property_cell(&dts, "#size-cells", 2));
-    try check(libfdt.fdt_property_cell(&dts, "#interrupt-cells", 1));
-    try check(libfdt.fdt_property(&dts, "reg", &cfg_reg, @sizeOf(@TypeOf(cfg_reg))));
-    try check(libfdt.fdt_property(&dts, "bus-range", &bug_range, @sizeOf(@TypeOf(bug_range))));
-
-    try check(libfdt.fdt_end_node(&dts));
 }
 
 pub fn init_vcpu(vcpu: os.fd_t, i: usize) !void {

@@ -70,12 +70,17 @@ pub const Dev = struct {
         self.init_queue_proc = init_fn;
     }
 
-    pub fn update_irq(self: *const Self) !void {
+    fn update_irq(self: *const Self) !void {
         if (self.irq_status != 0) {
             try kvm.setIrqLevel(self.irq, 1);
         } else {
             try kvm.setIrqLevel(self.irq, 0);
         }
+    }
+
+    pub fn assert_ring_irq(self: *Self) !void {
+    	self.irq_status |= c.VIRTIO_MMIO_INT_VRING;
+        try self.update_irq();
     }
 
     pub fn handler(ctx: ?*anyopaque, offset: u64, op: io.Operation, len: u32, data: []u8) anyerror!void {
@@ -269,3 +274,6 @@ pub fn register_dev(allocator: std.mem.Allocator, irq: u8, h: *const fn (*Dev, u
 
     return pdev;
 }
+
+pub const register_blk_dev = register_dev;
+pub const register_net_dev = register_dev;
