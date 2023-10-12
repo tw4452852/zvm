@@ -186,24 +186,24 @@ pub fn register(vendor_id: u16, device_id: u16, subsys_vendor_id: u16, subsys_id
     return &devs[registered_num];
 }
 
-fn handle(_: ?*anyopaque, offset: u64, op: io.Operation, len: u32, data: []u8) !void {
+fn handle(_: ?*anyopaque, offset: u64, op: io.Operation, data: []u8) !void {
     const addr: Addr = @bitCast(@as(u32, @truncate(offset)));
     const dev: ?*Dev = if (addr.device_number < registered_num) &devs[addr.device_number] else null;
     const reg_offset: u12 = @truncate(offset);
 
     switch (op) {
         .Read => if (dev) |d| {
-            try d.handler(reg_offset, op, data[0..len]);
+            try d.handler(reg_offset, op, data);
         } else {
-            @memset(data[0..len], 0xff);
+            @memset(data, 0xff);
         },
 
         .Write => if (dev) |d| {
-            try d.handler(reg_offset, op, data[0..len]);
+            try d.handler(reg_offset, op, data);
         } else {
             // do nothing
         },
     }
 
-    std.log.info("dev{}: {} 0x{x} {any}", .{ addr.device_number, op, reg_offset, data[0..len] });
+    std.log.info("dev{}: {} 0x{x} {any}", .{ addr.device_number, op, reg_offset, data });
 }

@@ -11,8 +11,8 @@ const io = @import("../../io.zig");
 const gic = @import("gic.zig");
 const irq = @import("../../irq.zig");
 
-fn handle(_: ?*anyopaque, offset: u64, op: io.Operation, len: u32, val: []u8) !void {
-    return v8250.handle(@intCast(offset), op, 1, len, val[0..len]);
+fn handle(_: ?*anyopaque, offset: u64, op: io.Operation, val: []u8) !void {
+    return v8250.handle(@intCast(offset), op, val);
 }
 
 pub fn create(dts: ?*anyopaque) !void {

@@ -42,9 +42,7 @@ pub fn setup_irq(n: u32) void {
     irq = n;
 }
 
-pub fn handle(offset: u16, op: io.Operation, size: u8, count: u32, val: []u8) anyerror!void {
-    assert(size * count == val.len);
-
+pub fn handle(offset: u16, op: io.Operation, val: []u8) anyerror!void {
     mutex.lock();
     defer mutex.unlock();
 

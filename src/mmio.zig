@@ -19,7 +19,7 @@ const limit = 32;
 var handler_array: [limit]H = undefined;
 var handlers: usize = 0;
 
-pub const Handler = *const fn (?*anyopaque, u64, io.Operation, u32, []u8) anyerror!void;
+pub const Handler = *const fn (?*anyopaque, u64, io.Operation, []u8) anyerror!void;
 const H = struct {
     start: u64,
     end: u64,
@@ -38,11 +38,11 @@ pub fn register_handler(start: u64, count: u64, h: Handler, ctx: ?*anyopaque) !v
     handlers += 1;
 }
 
-pub fn handle(addr: u64, op: io.Operation, len: u32, data: []u8) !void {
+pub fn handle(addr: u64, op: io.Operation, data: []u8) !void {
     for (handler_array[0..handlers]) |h| {
-        if (h.start <= addr and addr < h.end) return h.handle(h.ctx, addr - h.start, op, len, data);
+        if (h.start <= addr and addr < h.end) return h.handle(h.ctx, addr - h.start, op, data);
     } else {
-        std.log.err("unhandled {} {any}@0x{x}", .{ op, data[0..len], addr });
+        std.log.err("unhandled {} {any}@0x{x}", .{ op, data, addr });
         unreachable;
     }
 }

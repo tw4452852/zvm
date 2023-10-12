@@ -13,7 +13,7 @@ const IO_SIZE = 0x200;
 
 pub const Dev = struct {
     const Self = @This();
-    const Handler = *const fn (*Self, u64, io.Operation, u32, []u8) anyerror!void;
+    const Handler = *const fn (*Self, u64, io.Operation, []u8) anyerror!void;
 
     allocator: std.mem.Allocator,
     name: []const u8,
@@ -79,11 +79,11 @@ pub const Dev = struct {
     }
 
     pub fn assert_ring_irq(self: *Self) !void {
-    	self.irq_status |= c.VIRTIO_MMIO_INT_VRING;
+        self.irq_status |= c.VIRTIO_MMIO_INT_VRING;
         try self.update_irq();
     }
 
-    pub fn handler(ctx: ?*anyopaque, offset: u64, op: io.Operation, len: u32, data: []u8) anyerror!void {
+    pub fn handler(ctx: ?*anyopaque, offset: u64, op: io.Operation, data: []u8) anyerror!void {
         var self: *Self = @alignCast(@ptrCast(ctx));
         switch (offset) {
             c.VIRTIO_MMIO_MAGIC_VALUE => if (op == .Read) {
@@ -250,7 +250,7 @@ pub const Dev = struct {
                 .Write => unreachable,
             },
 
-            else => try self.specific_handler(self, offset, op, len, data),
+            else => try self.specific_handler(self, offset, op, data),
         }
     }
 };
@@ -262,7 +262,7 @@ pub fn get_registered_devs() ?*Dev {
     return registered_devs;
 }
 
-pub fn register_dev(allocator: std.mem.Allocator, irq: u8, h: *const fn (*Dev, u64, io.Operation, u32, []u8) anyerror!void) !*Dev {
+pub fn register_dev(allocator: std.mem.Allocator, irq: u8, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
     const addr = mmio.alloc_space(IO_SIZE);
     const name = try fmt.allocPrint(allocator, "virtio_mmio{}", .{registered_num});
     const pdev = try Dev.init(allocator, name, irq, addr, IO_SIZE, registered_devs, h);

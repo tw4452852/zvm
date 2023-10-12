@@ -66,11 +66,11 @@ fn runVCPU(vcpu: os.fd_t) !void {
         switch (reason) {
             .io => {
                 //log.info("io: 0x{X}, direction[{}], count[{}], size[{}]", .{ ctx.io.port, ctx.io.direction, ctx.io.count, ctx.io.size });
-                try portio.handle(ctx.io.port, @enumFromInt(ctx.io.direction), ctx.io.size, ctx.io.count, run_ptr[ctx.io.data_offset .. ctx.io.data_offset + ctx.io.count * ctx.io.size]);
+                try portio.handle(ctx.io.port, @enumFromInt(ctx.io.direction), run_ptr[ctx.io.data_offset .. ctx.io.data_offset + ctx.io.count * ctx.io.size]);
             },
             .mmio => {
                 //log.info("mmio: 0x{X}, is_write[{}], len[{}], data[{any}]", .{ ctx.mmio.phys_addr, ctx.mmio.is_write, ctx.mmio.len, ctx.mmio.data[0..ctx.mmio.len] });
-                try mmio.handle(ctx.mmio.phys_addr, @enumFromInt(ctx.mmio.is_write), ctx.mmio.len, &ctx.mmio.data);
+                try mmio.handle(ctx.mmio.phys_addr, @enumFromInt(ctx.mmio.is_write), ctx.mmio.data[0..ctx.mmio.len]);
             },
             .shutdown => {
                 log.info("shutdown", .{});

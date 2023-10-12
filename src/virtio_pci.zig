@@ -17,7 +17,7 @@ const BAR0 = struct {
 
 pub const Dev = struct {
     const Self = @This();
-    const Handler = *const fn (*Self, u64, io.Operation, u32, []u8) anyerror!void;
+    const Handler = *const fn (*Self, u64, io.Operation, []u8) anyerror!void;
 
     allocator: mem.Allocator,
     irq: u32,
@@ -125,7 +125,7 @@ pub fn get_registered_devs() ?*Dev {
     return registered_devs;
 }
 
-fn register_dev(comptime kind: enum { blk, net }, allocator: mem.Allocator, irq: u8, h: *const fn (*Dev, u64, io.Operation, u32, []u8) anyerror!void) !*Dev {
+fn register_dev(comptime kind: enum { blk, net }, allocator: mem.Allocator, irq: u8, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
     const redhat_qumranet_vendor = 0x1af4;
     const device_id = switch (kind) {
         .blk => 0x1001, // PCI_DEVICE_ID_VIRTIO_BLK
@@ -149,6 +149,6 @@ fn register_dev(comptime kind: enum { blk, net }, allocator: mem.Allocator, irq:
     return vpdev;
 }
 
-pub fn register_blk_dev(allocator: mem.Allocator, irq: u8, h: *const fn (*Dev, u64, io.Operation, u32, []u8) anyerror!void) !*Dev {
+pub fn register_blk_dev(allocator: mem.Allocator, irq: u8, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
     return register_dev(.blk, allocator, irq, h);
 }
