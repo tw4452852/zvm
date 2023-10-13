@@ -300,3 +300,7 @@ fn register_dev(comptime kind: enum { blk, net }, allocator: mem.Allocator, irq:
 pub fn register_blk_dev(allocator: mem.Allocator, irq: u8, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
     return register_dev(.blk, allocator, irq, h);
 }
+
+pub fn register_net_dev(allocator: mem.Allocator, irq: u8, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
+    return register_dev(.net, allocator, irq, h);
+}

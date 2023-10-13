@@ -60,10 +60,12 @@ pub fn generate_fdt_node(dts: ?*anyopaque) !void {
             .length = libfdt.cpu_to_fdt64(pci.addrspace_size),
         },
     };
-    var irq_maps: [256]IrqMap = undefined;
+    var buf: [4096]u8 = undefined;
+    var fbs = std.io.fixedBufferStream(&buf);
+    const wr = fbs.writer();
     const pci_devs = pci.registered_devs();
     for (pci_devs, 0..) |d, i| {
-        irq_maps[i] = .{
+        try wr.writeAll(std.mem.asBytes(&IrqMap{
             .pci_irq = .{
                 .pci_addr = .{
                     .hi = libfdt.cpu_to_fdt32(@as(u32, @intCast(i << 11))), // device number
@@ -80,7 +82,7 @@ pub fn generate_fdt_node(dts: ?*anyopaque) !void {
                 .num = libfdt.cpu_to_fdt32(d.cfg.comm.irq_line - gic.irq_spi_base),
                 .flags = libfdt.cpu_to_fdt32(gic.irq_level_high),
             },
-        };
+        })[0 .. @bitSizeOf(IrqMap) / 8]);
     }
     const irq_mask: Irq = .{
         .pci_addr = .{
@@ -100,10 +102,11 @@ pub fn generate_fdt_node(dts: ?*anyopaque) !void {
     try check(libfdt.fdt_property_cell(dts, "#interrupt-cells", 1));
     try check(libfdt.fdt_property(dts, "reg", &cfg_reg, @sizeOf(@TypeOf(cfg_reg))));
     try check(libfdt.fdt_property(dts, "bus-range", &bug_range, @sizeOf(@TypeOf(bug_range))));
-    try check(libfdt.fdt_property(dts, "ranges", &ranges, @sizeOf(@TypeOf(ranges))));
+    try check(libfdt.fdt_property(dts, "ranges", &ranges, @bitSizeOf(@TypeOf(ranges)) / 8));
     if (pci_devs.len > 0) {
-        try check(libfdt.fdt_property(dts, "interrupt-map", &irq_maps, @intCast(@sizeOf(IrqMap) * pci_devs.len)));
-        try check(libfdt.fdt_property(dts, "interrupt-map-mask", &irq_mask, @sizeOf(@TypeOf(irq_mask))));
+        const written = fbs.getWritten();
+        try check(libfdt.fdt_property(dts, "interrupt-map", written.ptr, @intCast(written.len)));
+        try check(libfdt.fdt_property(dts, "interrupt-map-mask", &irq_mask, @bitSizeOf(@TypeOf(irq_mask)) / 8));
     }
 
     try check(libfdt.fdt_end_node(dts));

@@ -1,6 +1,7 @@
 const std = @import("std");
 const virtio = @import("virtio.zig");
 const virtio_mmio = @import("virtio_mmio.zig");
+const virtio_pci = @import("virtio_pci.zig");
 const root = @import("root");
 const c = root.c;
 const io = @import("io.zig");
@@ -19,6 +20,7 @@ var tap_f: ?fs.File = null;
 var vhost_f: ?fs.File = null;
 
 const use_packed = false;
+const transport = virtio_pci;
 
 pub fn init(alloc: std.mem.Allocator) !void {
     const irq_line = irq.alloc();
@@ -38,7 +40,7 @@ pub fn init(alloc: std.mem.Allocator) !void {
         (1 << virtio.c.VIRTIO_F_ANY_LAYOUT) |
         if (use_packed) (1 << virtio.c.VIRTIO_F_RING_PACKED) else 0;
 
-    const dev = try virtio_mmio.register_net_dev(alloc, irq_line, mmio_rw);
+    const dev = try transport.register_net_dev(alloc, irq_line, mmio_rw);
     dev.set_device_features(device_features);
     dev.set_queue_init_proc(init_queue);
 
@@ -109,7 +111,7 @@ fn create_tap() !void {
     log.info("net: use {s}", .{ifr.ifr_ifrn.ifrn_name});
 }
 
-fn init_queue(dev: *virtio_mmio.Dev, q: *virtio.Q) !void {
+fn init_queue(dev: *transport.Dev, q: *virtio.Q) !void {
     for (&dev.vqs, 0..) |*vq, i| {
         if (@intFromPtr(vq) == @intFromPtr(q)) {
             switch (i) {
@@ -163,7 +165,7 @@ fn init_queue(dev: *virtio_mmio.Dev, q: *virtio.Q) !void {
     } else unreachable;
 }
 
-fn call_poll(dev: *virtio_mmio.Dev, eventfd: os.fd_t) !void {
+fn call_poll(dev: *transport.Dev, eventfd: os.fd_t) !void {
     const f: fs.File = .{
         .handle = eventfd,
         .capable_io_mode = .blocking,
@@ -178,7 +180,7 @@ fn call_poll(dev: *virtio_mmio.Dev, eventfd: os.fd_t) !void {
     }
 }
 
-fn ctrl_io(dev: *virtio_mmio.Dev, q: *virtio.Q) !void {
+fn ctrl_io(dev: *transport.Dev, q: *virtio.Q) !void {
     const ram = kvm.getMem();
 
     while (true) {
@@ -216,7 +218,7 @@ var config = mem.zeroInit(virtio.c.virtio_net_config, .{
     .max_virtqueue_pairs = 1,
 });
 
-fn mmio_rw(_: *virtio_mmio.Dev, offset: u64, op: io.Operation, data: []u8) anyerror!void {
+fn mmio_rw(_: *transport.Dev, offset: u64, op: io.Operation, data: []u8) anyerror!void {
     if (offset + data.len <= @sizeOf(@TypeOf(config))) {
         const ptr: [*]u8 = @ptrCast(&config);
         switch (op) {
