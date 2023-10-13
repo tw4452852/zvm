@@ -10,6 +10,10 @@ const mem = std.mem;
 const kvm = @import("root").kvm;
 
 const IO_SIZE = 0x200;
+const Kind = enum {
+    blk,
+    net,
+};
 
 pub const Dev = struct {
     const Self = @This();
@@ -22,6 +26,7 @@ pub const Dev = struct {
     len: u64,
     specific_handler: Handler,
     next: ?*Dev,
+    kind: Kind,
 
     status: u32 = undefined,
     feature_sel: u32 = undefined,
@@ -42,7 +47,7 @@ pub const Dev = struct {
     avail_addr: u64 = undefined,
     used_addr: u64 = undefined,
 
-    pub fn init(allocator: std.mem.Allocator, name: []const u8, irq: u32, start: u64, len: u64, next: ?*Dev, h: Handler) !*Self {
+    pub fn init(kind: Kind, allocator: std.mem.Allocator, name: []const u8, irq: u32, start: u64, len: u64, next: ?*Dev, h: Handler) !*Self {
         const dev: Self = .{
             .name = name,
             .irq = irq,
@@ -51,6 +56,7 @@ pub const Dev = struct {
             .next = next,
             .allocator = allocator,
             .specific_handler = h,
+            .kind = kind,
         };
         const pdev = try allocator.create(Self);
         pdev.* = dev;
@@ -94,6 +100,12 @@ pub const Dev = struct {
             } else unreachable,
             c.VIRTIO_MMIO_VENDOR_ID => if (op == .Read) {
                 mem.writeIntLittle(u32, data[0..4], 0x12345678);
+            } else unreachable,
+            c.VIRTIO_MMIO_DEVICE_ID => if (op == .Read) {
+                mem.writeIntLittle(i32, data[0..4], switch (self.kind) {
+                    .blk => virtio.c.VIRTIO_ID_BLOCK,
+                    .net => virtio.c.VIRTIO_ID_NET,
+                });
             } else unreachable,
             c.VIRTIO_MMIO_STATUS => switch (op) {
                 .Read => mem.writeIntLittle(u32, data[0..4], self.status),
@@ -250,7 +262,7 @@ pub const Dev = struct {
                 .Write => unreachable,
             },
 
-            else => try self.specific_handler(self, offset, op, data),
+            else => try self.specific_handler(self, offset - c.VIRTIO_MMIO_CONFIG, op, data),
         }
     }
 };
@@ -262,10 +274,10 @@ pub fn get_registered_devs() ?*Dev {
     return registered_devs;
 }
 
-pub fn register_dev(allocator: std.mem.Allocator, irq: u8, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
+fn register_dev(kind: Kind, allocator: std.mem.Allocator, irq: u8, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
     const addr = mmio.alloc_space(IO_SIZE);
     const name = try fmt.allocPrint(allocator, "virtio_mmio{}", .{registered_num});
-    const pdev = try Dev.init(allocator, name, irq, addr, IO_SIZE, registered_devs, h);
+    const pdev = try Dev.init(kind, allocator, name, irq, addr, IO_SIZE, registered_devs, h);
 
     try mmio.register_handler(addr, IO_SIZE, Dev.handler, pdev);
 
@@ -275,5 +287,9 @@ pub fn register_dev(allocator: std.mem.Allocator, irq: u8, h: *const fn (*Dev, u
     return pdev;
 }
 
-pub const register_blk_dev = register_dev;
-pub const register_net_dev = register_dev;
+pub fn register_blk_dev(allocator: std.mem.Allocator, irq: u8, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
+    return register_dev(.blk, allocator, irq, h);
+}
+pub fn register_net_dev(allocator: std.mem.Allocator, irq: u8, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
+    return register_dev(.net, allocator, irq, h);
+}

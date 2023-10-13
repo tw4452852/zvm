@@ -38,7 +38,7 @@ pub fn init(alloc: std.mem.Allocator) !void {
         (1 << virtio.c.VIRTIO_F_ANY_LAYOUT) |
         if (use_packed) (1 << virtio.c.VIRTIO_F_RING_PACKED) else 0;
 
-    const dev = try virtio_mmio.register_dev(alloc, irq_line, mmio_rw);
+    const dev = try virtio_mmio.register_net_dev(alloc, irq_line, mmio_rw);
     dev.set_device_features(device_features);
     dev.set_queue_init_proc(init_queue);
 
@@ -217,20 +217,14 @@ var config = mem.zeroInit(virtio.c.virtio_net_config, .{
 });
 
 fn mmio_rw(_: *virtio_mmio.Dev, offset: u64, op: io.Operation, data: []u8) anyerror!void {
-    switch (offset) {
-        virtio_mmio.c.VIRTIO_MMIO_DEVICE_ID => if (op == .Read) {
-            mem.writeIntLittle(u32, data[0..4], virtio.c.VIRTIO_ID_NET);
-        } else unreachable,
-        else => if (offset >= virtio_mmio.c.VIRTIO_MMIO_CONFIG) {
-            const off = offset - virtio_mmio.c.VIRTIO_MMIO_CONFIG;
-            const ptr: [*]u8 = @ptrCast(&config);
-            switch (op) {
-                .Read => @memcpy(data, (ptr + off)[0..data.len]),
-                .Write => @memcpy((ptr + off)[0..data.len], data),
-            }
-        } else {
-            log.debug("unhandled offset: 0x{x} {} {any}", .{ offset, op, data });
-            unreachable;
-        },
+    if (offset + data.len <= @sizeOf(@TypeOf(config))) {
+        const ptr: [*]u8 = @ptrCast(&config);
+        switch (op) {
+            .Read => @memcpy(data, (ptr + offset)[0..data.len]),
+            .Write => @memcpy((ptr + offset)[0..data.len], data),
+        }
+    } else {
+        log.debug("unhandled offset: 0x{x} {} {any}", .{ offset, op, data });
+        unreachable;
     }
 }

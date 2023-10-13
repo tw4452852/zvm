@@ -86,7 +86,7 @@ const CapHeader = packed struct {
     next: u8,
 };
 
-pub const H = *const fn (?*anyopaque, u64, io.Operation, []u8) anyerror!bool;
+pub const H = *const fn (?*anyopaque, u64, io.Operation, []u8) anyerror!void;
 
 pub const Dev = struct {
     cfg: CFG,
@@ -105,21 +105,26 @@ pub const Dev = struct {
         } else {
             const offset = @intFromPtr(ret) - @intFromPtr(&self.cfg);
             std.debug.assert(offset == @offsetOf(CFG, "free"));
-            self.cfg.comm.status = mem.readIntLittle(u16, mem.asBytes(&@as(u16, c.PCI_STATUS_CAP_LIST)));
+            self.cfg.comm.status = mem.nativeToLittle(u16, c.PCI_STATUS_CAP_LIST);
             self.cfg.comm.capabilities = @intCast(offset);
         }
         self.last_cap = @ptrCast(ret);
         return ret;
     }
 
-    pub fn allocate_bar(self: *Self, i: usize, size: u64) !void {
+    pub fn allocate_bar(self: *Self, i: usize, size: u64, h: H, ctx: ?*anyopaque) !u64 {
         if (self.bar_addr[i] == null) {
-            const start = alloc_space(size);
-            self.bar_addr[i] = start;
+            const pci_start = alloc_space(size);
+            const cpu_start = mmio.GAP_START + mmio.GAP_SIZE + (pci_start - addrspace_start); // pci space follows mmio space
+
+            try mmio.register_handler(cpu_start, size, h, ctx);
+
+            self.bar_addr[i] = pci_start;
             self.bar_size[i] = size;
 
-            self.cfg.comm.bar[i * 2] = mem.readIntLittle(u32, mem.asBytes(&(@as(u32, @truncate(start)) | c.PCI_BASE_ADDRESS_SPACE_MEMORY | c.PCI_BASE_ADDRESS_MEM_TYPE_64)));
-            self.cfg.comm.bar[i * 2 + 1] = mem.readIntLittle(u32, mem.asBytes(&@as(u32, @truncate(start >> 32))));
+            self.cfg.comm.bar[i * 2] = mem.nativeToLittle(u32, @as(u32, @truncate(pci_start)) | c.PCI_BASE_ADDRESS_SPACE_MEMORY | c.PCI_BASE_ADDRESS_MEM_TYPE_64);
+            self.cfg.comm.bar[i * 2 + 1] = mem.nativeToLittle(u32, @as(u32, @truncate(pci_start >> 32)));
+            return cpu_start;
         } else unreachable;
     }
 
@@ -161,7 +166,7 @@ pub fn registered_devs() []Dev {
     return devs[0..registered_num];
 }
 
-pub fn register(vendor_id: u16, device_id: u16, subsys_vendor_id: u16, subsys_id: u16, class: u24) !*Dev {
+pub fn register(vendor_id: u16, device_id: u16, subsys_vendor_id: u16, subsys_id: u16, class: u24, irq: u32) !*Dev {
     if (registered_num == 32) {
         return error.TOO_MANY;
     }
@@ -170,13 +175,15 @@ pub fn register(vendor_id: u16, device_id: u16, subsys_vendor_id: u16, subsys_id
     devs[registered_num] = .{
         .cfg = mem.zeroInit(CFG, .{
             .comm = mem.zeroInit(COMM, .{
-                .vendor_id = mem.readIntLittle(u16, mem.asBytes(&vendor_id)),
-                .device_id = mem.readIntLittle(u16, mem.asBytes(&device_id)),
+                .vendor_id = mem.nativeToLittle(u16, vendor_id),
+                .device_id = mem.nativeToLittle(u16, device_id),
                 .command = c.PCI_COMMAND_IO | c.PCI_COMMAND_MEMORY,
                 .header_type = c.PCI_HEADER_TYPE_NORMAL,
                 .class = .{ @as(u8, @truncate(class)), @as(u8, @truncate(class >> 8)), @as(u8, @truncate(class >> 16)) },
-                .subsys_vendor_id = mem.readIntLittle(u16, mem.asBytes(&subsys_vendor_id)),
-                .subsys_id = mem.readIntLittle(u16, mem.asBytes(&subsys_id)),
+                .subsys_vendor_id = mem.nativeToLittle(u16, subsys_vendor_id),
+                .subsys_id = mem.nativeToLittle(u16, subsys_id),
+                .irq_line = @as(u8, @intCast(irq)),
+                .irq_pin = 1,
             }),
         }),
         .cap_allocator = cap_buf.allocator(),
@@ -205,5 +212,5 @@ fn handle(_: ?*anyopaque, offset: u64, op: io.Operation, data: []u8) !void {
         },
     }
 
-    std.log.info("dev{}: {} 0x{x} {any}", .{ addr.device_number, op, reg_offset, data });
+    //std.log.info("dev{}: {} 0x{x} {any}", .{ addr.device_number, op, reg_offset, data });
 }
