@@ -9,17 +9,23 @@ pub const c = @cImport({
     @cInclude("linux/virtio_pci.h");
 });
 
-const BAR0 = struct {
-    cfg: c.virtio_pci_common_cfg,
-    dev_cfg: [4096]u8,
-    irq_status: u16,
-    notify: u16,
-};
-
 pub const Dev = struct {
     const Self = @This();
     const Handler = *const fn (*Self, u64, io.Operation, []u8) anyerror!void;
-    const max_queue_num = 256;
+    const max_queue_num = 64;
+
+    const BAR0 = struct {
+        cfg: c.virtio_pci_common_cfg,
+        dev_cfg: [4096]u8,
+        irq_status: u16,
+        notify: u16,
+    };
+
+    const BAR1 = struct {
+        cfg_msix: pci.msix_table_entry,
+        queue_msix: [max_queue_num]pci.msix_table_entry,
+        pba: [max_queue_num + 1]u32,
+    };
 
     allocator: mem.Allocator,
     irq: u32,
@@ -31,6 +37,7 @@ pub const Dev = struct {
     init_queue_proc: *const fn (dev: *Self, q: *virtio.Q) anyerror!void = undefined,
     bar0: BAR0,
     bar0_gpa: u64,
+    bar1: BAR1,
     vqs: [max_queue_num]?virtio.Q = .{null} ** max_queue_num,
     vq_properties: [max_queue_num]struct {
         size: u16,
@@ -46,6 +53,9 @@ pub const Dev = struct {
 
         // prepare bar0
         const bar0_gpa = try pdev.allocate_bar(0, mem.alignForward(u64, @sizeOf(BAR0), 4096), handler0, self);
+
+        // prepare bar1 for MSIX
+        _ = try pdev.allocate_bar(1, mem.alignForward(u64, @sizeOf(BAR1), 4096), handler1, self);
 
         // register common cfg capability for modern virtio pci device
         const comm_cfg: c.virtio_pci_cap = .{
@@ -107,6 +117,17 @@ pub const Dev = struct {
         const dev_cap = try pdev.add_cap(@TypeOf(dev_cfg));
         dev_cap.* = dev_cfg;
 
+        // register msix capability for modern virtio pci device
+        const msix_cfg: pci.msix_cap = .{
+            .cap_vndr = pci.c.PCI_CAP_ID_MSIX,
+            .cap_next = 0,
+            .ctrl = mem.nativeToLittle(u16, max_queue_num + 1 - 1), // number of msix table entries - 1
+            .table_offset = mem.nativeToLittle(u32, 2),
+            .pba_offset = mem.nativeToLittle(u32, @offsetOf(BAR1, "pba") | 2),
+        };
+        const msix_cap = try pdev.add_cap(@TypeOf(msix_cfg));
+        msix_cap.* = msix_cfg;
+
         const dev: Self = .{
             .allocator = allocator,
             .irq = irq,
@@ -118,6 +139,7 @@ pub const Dev = struct {
                     .queue_size = mem.nativeToLittle(u16, 256),
                 }),
             }),
+            .bar1 = mem.zeroes(BAR1),
             .bar0_gpa = bar0_gpa,
         };
 
@@ -274,7 +296,13 @@ pub const Dev = struct {
             }
         }
 
-        //std.log.info("{} 0x{x} {any}", .{ op, offset, data });
+        //std.log.info("bar0: {} 0x{x} {any}", .{ op, offset, data });
+    }
+
+    fn handler1(ctx: ?*anyopaque, offset: u64, op: io.Operation, data: []u8) !void {
+        var self: *Self = @alignCast(@ptrCast(ctx));
+        _ = self;
+        if (true) std.log.info("bar1: {} 0x{x} {any}", .{ op, offset, data });
     }
 };
 

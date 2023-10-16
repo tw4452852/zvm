@@ -76,6 +76,21 @@ pub const COMM = extern struct {
     max_lat: u8,
 };
 
+pub const msix_table_entry = extern struct {
+    addr_lo: u32,
+    addr_hi: u32,
+    data: u32,
+    ctrl: u32,
+};
+
+pub const msix_cap = extern struct {
+    cap_vndr: u8,
+    cap_next: u8,
+    ctrl: u16,
+    table_offset: u32,
+    pba_offset: u32,
+};
+
 const CFG = extern struct {
     comm: COMM,
     free: [4096 - @sizeOf(COMM)]u8,
@@ -92,6 +107,7 @@ pub const Dev = struct {
     cfg: CFG,
     bar_addr: [6]?u64 = .{null} ** 6,
     bar_size: [6]?u64 = .{null} ** 6,
+    bar_handle: [6]?struct { h: H, ctx: ?*anyopaque } = .{null} ** 6,
 
     last_cap: ?*CapHeader = null,
     cap_allocator: mem.Allocator,
@@ -115,12 +131,14 @@ pub const Dev = struct {
     pub fn allocate_bar(self: *Self, i: usize, size: u64, h: H, ctx: ?*anyopaque) !u64 {
         if (self.bar_addr[i] == null) {
             const pci_start = alloc_space(size);
-            const cpu_start = mmio.GAP_START + mmio.GAP_SIZE + (pci_start - addrspace_start); // pci space follows mmio space
 
-            try mmio.register_handler(cpu_start, size, h, ctx);
+            const cpu_start = mmio.GAP_START + mmio.GAP_SIZE + (pci_start - addrspace_start); // pci space follows mmio space
 
             self.bar_addr[i] = pci_start;
             self.bar_size[i] = size;
+            self.bar_handle[i] = .{ .h = h, .ctx = ctx };
+
+            try mmio.register_handler(cpu_start, size, h, ctx);
 
             self.cfg.comm.bar[i * 2] = mem.nativeToLittle(u32, @as(u32, @truncate(pci_start)) | c.PCI_BASE_ADDRESS_SPACE_MEMORY | c.PCI_BASE_ADDRESS_MEM_TYPE_64);
             self.cfg.comm.bar[i * 2 + 1] = mem.nativeToLittle(u32, @as(u32, @truncate(pci_start >> 32)));
@@ -129,23 +147,44 @@ pub const Dev = struct {
     }
 
     pub fn handler(self: *Self, offset: u64, op: io.Operation, data: []u8) !void {
+        const S = struct {
+            var new_bar_addrs: [6]u64 = undefined;
+        };
         switch (offset) {
             c.PCI_BASE_ADDRESS_0...c.PCI_BASE_ADDRESS_5 => {
-                // prepare to query bar size
                 const i = (offset - c.PCI_BASE_ADDRESS_0) / (2 * @sizeOf(u32));
-                if (op == .Write and mem.eql(u8, data, &.{ 0xff, 0xff, 0xff, 0xff })) {
+                const is_lowpart = (offset - c.PCI_BASE_ADDRESS_0) % (2 * @sizeOf(u32)) == 0;
+
+                if (op == .Write) {
                     if (self.bar_size[i]) |bar_size| {
-                        const is_lowpart = (offset - c.PCI_BASE_ADDRESS_0) % (2 * @sizeOf(u32)) == 0;
-                        if (is_lowpart) {
-                            mem.writeIntLittle(u32, mem.asBytes(&self.cfg)[offset..][0..4], @as(u32, @truncate(~(bar_size - 1) | (self.bar_addr[i].? & 0xf))));
+                        if (mem.eql(u8, data, &.{ 0xff, 0xff, 0xff, 0xff })) {
+                            // prepare to query bar size
+                            if (is_lowpart) {
+                                mem.writeIntLittle(u32, mem.asBytes(&self.cfg)[offset..][0..4], @as(u32, @truncate(~(bar_size - 1) | (self.bar_addr[i].? & 0xf))));
+                            } else {
+                                mem.writeIntLittle(u32, mem.asBytes(&self.cfg)[offset..][0..4], @as(u32, @truncate(bar_size >> 32)));
+                            }
+                            return;
                         } else {
-                            mem.writeIntLittle(u32, mem.asBytes(&self.cfg)[offset..][0..4], @as(u32, @truncate(bar_size >> 32)));
+                            if (is_lowpart) {
+                                S.new_bar_addrs[i] &= 0xffffffff_00000000;
+                                S.new_bar_addrs[i] |= (mem.readIntLittle(u32, data[0..4]) & 0xfffffff0);
+                            } else {
+                                S.new_bar_addrs[i] &= 0x00000000_ffffffff;
+                                S.new_bar_addrs[i] |= (@as(u64, mem.readIntLittle(u32, data[0..4])) << 32);
+
+                                const cpu_start = mmio.GAP_START + mmio.GAP_SIZE + (S.new_bar_addrs[i] - addrspace_start); // pci space follows mmio space
+
+                                try mmio.register_handler(cpu_start, self.bar_size[i].?, self.bar_handle[i].?.h, self.bar_handle[i].?.ctx);
+
+                                self.bar_addr[i] = S.new_bar_addrs[i];
+                            }
                         }
                     }
-                    return;
                 }
             },
             c.PCI_ROM_ADDRESS => if (op == .Write and mem.eql(u8, data, mem.asBytes(&c.PCI_ROM_ADDRESS_MASK))) {
+                // Do not support ROM bar yet
                 mem.writeIntLittle(u32, data[0..4], 0);
                 return;
             },

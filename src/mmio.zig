@@ -28,6 +28,15 @@ const H = struct {
 };
 
 pub fn register_handler(start: u64, count: u64, h: Handler, ctx: ?*anyopaque) !void {
+    // already exist?
+    for (handler_array[0..handlers]) |*handler| {
+        if (handler.start == start and handler.end == start + count) {
+            handler.handle = h;
+            handler.ctx = ctx;
+            return;
+        }
+    }
+
     if (handlers == limit) return error.NO_SPACE;
     handler_array[handlers] = .{
         .start = start,
