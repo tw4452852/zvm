@@ -236,6 +236,7 @@ pub const Dev = struct {
                         try self.init_queue_proc(self, &self.vqs[i].?);
                     } else {
                         self.vqs[i].?.deinit();
+                        self.vqs[i] = null;
                     }
                 },
             },
@@ -260,6 +261,17 @@ pub const Dev = struct {
                 .Read => @memcpy(data, mem.asBytes(&self.bar0)[offset..][0..data.len]),
                 .Write => @memcpy(mem.asBytes(&self.bar0)[offset..][0..data.len], data),
             },
+        }
+
+        // reset device
+        if (offset == @offsetOf(c.virtio_pci_common_cfg, "device_status") and op == .Write and self.bar0.cfg.device_status == 0) {
+            // deinit all queues
+            for (0..max_queue_num) |qi| {
+                if (self.vqs[qi]) |*q| {
+                    q.deinit();
+                    self.vqs[qi] = null;
+                }
+            }
         }
 
         //std.log.info("{} 0x{x} {any}", .{ op, offset, data });
