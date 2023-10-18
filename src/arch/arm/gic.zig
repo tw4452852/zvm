@@ -11,8 +11,10 @@ const check = @import("../../helpers.zig").check_non_zero;
 const log = std.log;
 const mmio = root.mmio;
 const init = @import("init.zig");
+const gicv2m = @import("gicv2m.zig");
 
 pub const phandle = 1;
+pub const msi_phandle = 2;
 
 pub const irq_type_spi = 0;
 pub const irq_type_ppi = 1;
@@ -60,6 +62,9 @@ fn create_gicv2(dts: ?*anyopaque) !os.fd_t {
     };
     try check(ioctl(@intCast(dev.fd), c.KVM_SET_DEVICE_ATTR, @intFromPtr(&dist)));
 
+    try gicv2m.init();
+    const msi_reg = [_]u64{ libfdt.cpu_to_fdt64(gicv2m.region_start), libfdt.cpu_to_fdt64(gicv2m.region_size) };
+
     try check(libfdt.fdt_begin_node(dts, "intc"));
     try check(libfdt.fdt_property(
         dts,
@@ -73,6 +78,24 @@ fn create_gicv2(dts: ?*anyopaque) !os.fd_t {
     try check(libfdt.fdt_property_cell(dts, "#size-cells", 2));
     try check(libfdt.fdt_property_cell(dts, "phandle", phandle));
     try check(libfdt.fdt_property(dts, "reg", &reg, @sizeOf(@TypeOf(reg))));
+
+    {
+        try check(libfdt.fdt_property(dts, "ranges", null, 0));
+        try check(libfdt.fdt_begin_node(dts, "msic"));
+
+        try check(libfdt.fdt_property(dts, "msi-controller", null, 0));
+        try check(libfdt.fdt_property(
+            dts,
+            "compatible",
+            "arm,gic-v2m-frame",
+            "arm,gic-v2m-frame".len + 1,
+        ));
+        try check(libfdt.fdt_property_cell(dts, "phandle", msi_phandle));
+        try check(libfdt.fdt_property(dts, "reg", &msi_reg, @sizeOf(@TypeOf(msi_reg))));
+
+        try check(libfdt.fdt_end_node(dts));
+    }
+
     try check(libfdt.fdt_end_node(dts));
 
     return @intCast(dev.fd);
