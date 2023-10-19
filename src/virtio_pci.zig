@@ -22,9 +22,8 @@ pub const Dev = struct {
     };
 
     const BAR1 = struct {
-        cfg_msix: pci.msix_table_entry,
-        queue_msix: [max_queue_num]pci.msix_table_entry,
-        pba: [max_queue_num + 1]u32,
+        queue_msix: [max_queue_num + 1]pci.msix_table_entry,
+        pba: [max_queue_num + 1]u1,
     };
 
     allocator: mem.Allocator,
@@ -36,7 +35,6 @@ pub const Dev = struct {
     next: ?*Dev = null,
     init_queue_proc: *const fn (dev: *Self, q: *virtio.Q) anyerror!void = undefined,
     bar0: BAR0,
-    bar0_gpa: u64,
     bar1: BAR1,
     vqs: [max_queue_num]?virtio.Q = .{null} ** max_queue_num,
     vq_properties: [max_queue_num]struct {
@@ -44,18 +42,21 @@ pub const Dev = struct {
         descs: u64,
         avail: u64,
         used: u64,
-    } = undefined,
+        msix_idx: ?usize = null,
+    } = .{.{ .size = 0, .descs = 0, .avail = 0, .used = 0, .msix_idx = null }} ** max_queue_num,
     not_support_ioeventfd: bool = false,
+    use_msix: bool = false,
+    global_msix_ctrl: *u16,
 
     pub fn init(allocator: mem.Allocator, irq: u32, vendor_id: u16, device_id: u16, subsys_vendor_id: u16, subsys_id: u16, class: u24, specific_handler: Handler) !*Self {
         const self = try allocator.create(Self);
         const pdev = try pci.register(vendor_id, device_id, subsys_vendor_id, subsys_id, class, irq);
 
         // prepare bar0
-        const bar0_gpa = try pdev.allocate_bar(0, mem.alignForward(u64, @sizeOf(BAR0), 4096), handler0, self);
+        try pdev.allocate_bar(0, mem.alignForward(u64, @sizeOf(BAR0), 4096), handler0, self);
 
         // prepare bar1 for MSIX
-        _ = try pdev.allocate_bar(1, mem.alignForward(u64, @sizeOf(BAR1), 4096), handler1, self);
+        try pdev.allocate_bar(1, mem.alignForward(u64, @sizeOf(BAR1), 4096), handler1, self);
 
         // register common cfg capability for modern virtio pci device
         const comm_cfg: c.virtio_pci_cap = .{
@@ -140,7 +141,7 @@ pub const Dev = struct {
                 }),
             }),
             .bar1 = mem.zeroes(BAR1),
-            .bar0_gpa = bar0_gpa,
+            .global_msix_ctrl = &msix_cap.ctrl,
         };
 
         self.* = dev;
@@ -160,16 +161,28 @@ pub const Dev = struct {
         self.init_queue_proc = init_fn;
     }
 
-    pub fn assert_ring_irq(self: *Self) !void {
+    pub fn assert_ring_irq(self: *Self, q: *const virtio.Q) !void {
+        const i = (@intFromPtr(q) - @intFromPtr(&self.vqs)) / @sizeOf(@TypeOf(q.*));
+        if (self.vq_properties[i].msix_idx) |msix_idx| {
+            const msix_ctrl = mem.readIntLittle(u16, mem.asBytes(self.global_msix_ctrl));
+            if (msix_ctrl & pci.c.PCI_MSIX_FLAGS_ENABLE != 0) {
+                const irq = self.bar1.queue_msix[msix_idx].data;
+                if (msix_ctrl & pci.c.PCI_MSIX_FLAGS_MASKALL != 0 or self.bar1.queue_msix[msix_idx].ctrl & mem.nativeToLittle(u32, pci.c.PCI_MSIX_ENTRY_CTRL_MASKBIT) != 0) {
+                    // set pending in PBA
+                    self.bar1.pba[msix_idx] = 1;
+                } else try kvm.triggerIrq(irq);
+                return;
+            }
+        }
         self.bar0.irq_status |= 1;
-        try self.update_irq();
+        try self.update_irq(self.irq);
     }
 
-    fn update_irq(self: *const Self) !void {
+    fn update_irq(self: *const Self, irq: u32) !void {
         if (self.bar0.irq_status != 0) {
-            try kvm.setIrqLevel(self.irq, 1);
+            try kvm.setIrqLevel(irq, 1);
         } else {
-            try kvm.setIrqLevel(self.irq, 0);
+            try kvm.setIrqLevel(irq, 0);
         }
     }
 
@@ -246,7 +259,7 @@ pub const Dev = struct {
                     const enable = mem.readIntLittle(u16, data[0..2]);
                     if (enable > 0) {
                         const eventfd = try std.os.eventfd(0, 0);
-                        kvm.addIOEventFd(self.bar0_gpa + @offsetOf(BAR0, "notify"), @sizeOf(@TypeOf(self.bar0.notify)), eventfd, i) catch {
+                        kvm.addIOEventFd(self.pdev.bar_gpa(0) + @offsetOf(BAR0, "notify"), @sizeOf(@TypeOf(self.bar0.notify)), eventfd, i) catch {
                             self.not_support_ioeventfd = true;
                         };
                         const q = try virtio.Q.init(.{ .v2 = .{
@@ -275,15 +288,23 @@ pub const Dev = struct {
                     // read to clear
                     data[0] = @truncate(self.bar0.irq_status);
                     self.bar0.irq_status = 0;
-                    try self.update_irq();
+                    try self.update_irq(self.irq);
                 },
             },
+
             @offsetOf(BAR0, "dev_cfg")...@offsetOf(BAR0, "dev_cfg") + @sizeOf(@TypeOf(self.bar0.dev_cfg)) => try self.specific_handler(self, offset - @offsetOf(BAR0, "dev_cfg"), op, data),
             else => switch (op) {
                 .Read => @memcpy(data, mem.asBytes(&self.bar0)[offset..][0..data.len]),
                 .Write => @memcpy(mem.asBytes(&self.bar0)[offset..][0..data.len], data),
             },
         }
+
+        if (offset == @offsetOf(c.virtio_pci_common_cfg, "queue_msix_vector") and op == .Write) {
+            self.vq_properties[i].msix_idx = mem.readIntLittle(u16, data[0..2]);
+            self.use_msix = true;
+        }
+
+        if (offset == @offsetOf(c.virtio_pci_common_cfg, "msix_config") and op == .Write) std.debug.assert(self.bar0.cfg.msix_config == 0); // config vector should be the first in msix table
 
         // reset device
         if (offset == @offsetOf(c.virtio_pci_common_cfg, "device_status") and op == .Write and self.bar0.cfg.device_status == 0) {
@@ -301,8 +322,12 @@ pub const Dev = struct {
 
     fn handler1(ctx: ?*anyopaque, offset: u64, op: io.Operation, data: []u8) !void {
         var self: *Self = @alignCast(@ptrCast(ctx));
-        _ = self;
-        if (true) std.log.info("bar1: {} 0x{x} {any}", .{ op, offset, data });
+        switch (op) {
+            .Read => @memcpy(data, mem.asBytes(&self.bar1)[offset..][0..data.len]),
+            .Write => @memcpy(mem.asBytes(&self.bar1)[offset..][0..data.len], data),
+        }
+
+        //std.log.info("bar1: {} 0x{x} {any}", .{ op, offset, data });
     }
 };
 

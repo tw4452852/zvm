@@ -103,6 +103,7 @@ pub fn generate_fdt_node(dts: ?*anyopaque) !void {
     try check(libfdt.fdt_property(dts, "reg", &cfg_reg, @sizeOf(@TypeOf(cfg_reg))));
     try check(libfdt.fdt_property(dts, "bus-range", &bug_range, @sizeOf(@TypeOf(bug_range))));
     try check(libfdt.fdt_property(dts, "ranges", &ranges, @bitSizeOf(@TypeOf(ranges)) / 8));
+    try check(libfdt.fdt_property_cell(dts, "msi-parent", gic.msi_phandle));
     if (pci_devs.len > 0) {
         const written = fbs.getWritten();
         try check(libfdt.fdt_property(dts, "interrupt-map", written.ptr, @intCast(written.len)));

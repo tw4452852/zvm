@@ -144,7 +144,7 @@ fn init_queue(dev: *transport.Dev, q: *virtio.Q) !void {
 
                     const eventfd = try std.os.eventfd(0, 0);
 
-                    const handle = try Thread.spawn(.{}, call_poll, .{ dev, eventfd });
+                    const handle = try Thread.spawn(.{}, call_poll, .{ dev, eventfd, q });
                     handle.detach();
 
                     file.fd = eventfd;
@@ -165,7 +165,7 @@ fn init_queue(dev: *transport.Dev, q: *virtio.Q) !void {
     } else unreachable;
 }
 
-fn call_poll(dev: *transport.Dev, eventfd: os.fd_t) !void {
+fn call_poll(dev: *transport.Dev, eventfd: os.fd_t, vq: *const virtio.Q) !void {
     const f: fs.File = .{
         .handle = eventfd,
         .capable_io_mode = .blocking,
@@ -175,7 +175,7 @@ fn call_poll(dev: *transport.Dev, eventfd: os.fd_t) !void {
     while (true) {
         const n = try reader.readIntNative(u64);
         if (n > 0) {
-            try dev.assert_ring_irq();
+            try dev.assert_ring_irq(vq);
         }
     }
 }
@@ -203,7 +203,7 @@ fn ctrl_io(dev: *transport.Dev, q: *virtio.Q) !void {
 
         // notfiy guest if needed
         if (q.need_notify()) {
-            try dev.assert_ring_irq();
+            try dev.assert_ring_irq(q);
         }
     }
 }

@@ -128,22 +128,27 @@ pub const Dev = struct {
         return ret;
     }
 
-    pub fn allocate_bar(self: *Self, i: usize, size: u64, h: H, ctx: ?*anyopaque) !u64 {
+    pub fn allocate_bar(self: *Self, i: usize, size: u64, h: H, ctx: ?*anyopaque) !void {
         if (self.bar_addr[i] == null) {
             const pci_start = alloc_space(size);
-
-            const cpu_start = mmio.GAP_START + mmio.GAP_SIZE + (pci_start - addrspace_start); // pci space follows mmio space
 
             self.bar_addr[i] = pci_start;
             self.bar_size[i] = size;
             self.bar_handle[i] = .{ .h = h, .ctx = ctx };
 
-            try mmio.register_handler(cpu_start, size, h, ctx);
+            try mmio.register_handler(self.bar_gpa(i), size, h, ctx);
 
             self.cfg.comm.bar[i * 2] = mem.nativeToLittle(u32, @as(u32, @truncate(pci_start)) | c.PCI_BASE_ADDRESS_SPACE_MEMORY | c.PCI_BASE_ADDRESS_MEM_TYPE_64);
             self.cfg.comm.bar[i * 2 + 1] = mem.nativeToLittle(u32, @as(u32, @truncate(pci_start >> 32)));
-            return cpu_start;
         } else unreachable;
+    }
+
+    inline fn mmio_addr(pci_addr: u64) u64 {
+        return mmio.GAP_START + mmio.GAP_SIZE + (pci_addr - addrspace_start);
+    }
+
+    pub fn bar_gpa(self: *const Self, i: usize) u64 {
+        return mmio_addr(self.bar_addr[i].?);
     }
 
     pub fn handler(self: *Self, offset: u64, op: io.Operation, data: []u8) !void {
@@ -173,9 +178,8 @@ pub const Dev = struct {
                                 S.new_bar_addrs[i] &= 0x00000000_ffffffff;
                                 S.new_bar_addrs[i] |= (@as(u64, mem.readIntLittle(u32, data[0..4])) << 32);
 
-                                const cpu_start = mmio.GAP_START + mmio.GAP_SIZE + (S.new_bar_addrs[i] - addrspace_start); // pci space follows mmio space
-
-                                try mmio.register_handler(cpu_start, self.bar_size[i].?, self.bar_handle[i].?.h, self.bar_handle[i].?.ctx);
+                                try mmio.deregister_handler(self.bar_gpa(i), self.bar_size[i].?, self.bar_handle[i].?.h, self.bar_handle[i].?.ctx);
+                                try mmio.register_handler(mmio_addr(S.new_bar_addrs[i]), self.bar_size[i].?, self.bar_handle[i].?.h, self.bar_handle[i].?.ctx);
 
                                 self.bar_addr[i] = S.new_bar_addrs[i];
                             }

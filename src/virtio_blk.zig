@@ -87,7 +87,7 @@ fn blkio(dev: *transport.Dev, q: *virtio.Q) !void {
         }
         // notfiy guest if needed
         if (q.need_notify()) {
-            try dev.assert_ring_irq();
+            try dev.assert_ring_irq(q);
         }
     }
 }

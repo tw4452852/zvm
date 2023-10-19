@@ -28,15 +28,6 @@ const H = struct {
 };
 
 pub fn register_handler(start: u64, count: u64, h: Handler, ctx: ?*anyopaque) !void {
-    // already exist?
-    for (handler_array[0..handlers]) |*handler| {
-        if (handler.start == start and handler.end == start + count) {
-            handler.handle = h;
-            handler.ctx = ctx;
-            return;
-        }
-    }
-
     if (handlers == limit) return error.NO_SPACE;
     handler_array[handlers] = .{
         .start = start,
@@ -45,6 +36,22 @@ pub fn register_handler(start: u64, count: u64, h: Handler, ctx: ?*anyopaque) !v
         .ctx = ctx,
     };
     handlers += 1;
+}
+
+pub fn deregister_handler(start: u64, count: u64, handler: Handler, ctx: ?*anyopaque) !void {
+    for (handler_array[0..handlers]) |*h| {
+        if (h.start == start and h.end == start + count and h.handle == handler and h.ctx == ctx) {
+            h.* = handler_array[handlers - 1];
+            handlers -= 1;
+            break;
+        }
+    } else return error.NOT_FOUND;
+}
+
+pub fn dump() void {
+    for (handler_array[0..handlers], 0..) |h, i| {
+        std.debug.print("{}: 0x{x} - 0x{x}\n", .{ i, h.start, h.end });
+    }
 }
 
 pub fn handle(addr: u64, op: io.Operation, data: []u8) !void {
