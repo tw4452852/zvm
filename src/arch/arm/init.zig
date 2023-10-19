@@ -182,12 +182,12 @@ pub fn load_kernel(kernel_path: []const u8, cmd: *const root.Cmdline, initrd_pat
     try check(libfdt.fdt_end_node(&dts)); // end "chosen" node
 
     // virtio mmio devices
-    var virtio_mmio_dev: ?*virtio_mmio.Dev = virtio_mmio.get_registered_devs();
-    while (virtio_mmio_dev) |dev| : (virtio_mmio_dev = dev.next) {
+    const virtio_mmio_devs = virtio_mmio.get_registered_devs();
+    for (virtio_mmio_devs) |dev| {
         const mems = [_]u64{ libfdt.cpu_to_fdt64(dev.start), libfdt.cpu_to_fdt64(dev.len) };
         const irqs = [_]u32{ libfdt.cpu_to_fdt32(gic.irq_type_spi), libfdt.cpu_to_fdt32(dev.irq - gic.irq_spi_base), libfdt.cpu_to_fdt32(gic.irq_edge_rising) };
 
-        try check(libfdt.fdt_begin_node(&dts, dev.name.ptr));
+        try check(libfdt.fdt_begin_node(&dts, &dev.name));
         try check(libfdt.fdt_property(&dts, "compatible", "virtio,mmio", "virtio,mmio".len + 1));
         try check(libfdt.fdt_property(&dts, "reg", &mems, @sizeOf(@TypeOf(mems))));
         try check(libfdt.fdt_property(&dts, "interrupts", &irqs, @sizeOf(@TypeOf(irqs))));

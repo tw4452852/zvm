@@ -23,7 +23,7 @@ pub fn init(alloc: std.mem.Allocator, path: []const u8) !void {
     disk_file_path = path;
 
     const device_features = (1 << virtio.c.VIRTIO_BLK_F_FLUSH) | (1 << virtio.c.VIRTIO_RING_F_EVENT_IDX) | (1 << virtio.c.VIRTIO_RING_F_INDIRECT_DESC) | (1 << virtio.c.VIRTIO_F_VERSION_1) | if (use_packed) (1 << virtio.c.VIRTIO_F_RING_PACKED) else 0;
-    const dev = try transport.register_blk_dev(alloc, irq_line, mmio_rw);
+    const dev = try transport.register_blk_dev(irq_line, mmio_rw);
     dev.set_device_features(device_features);
     dev.set_queue_init_proc(init_queue);
 

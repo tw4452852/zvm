@@ -20,7 +20,7 @@ var tap_f: ?fs.File = null;
 var vhost_f: ?fs.File = null;
 
 const use_packed = false;
-const transport = virtio_pci;
+const transport = virtio_mmio;
 
 pub fn init(alloc: std.mem.Allocator) !void {
     const irq_line = irq.alloc();
@@ -40,7 +40,7 @@ pub fn init(alloc: std.mem.Allocator) !void {
         (1 << virtio.c.VIRTIO_F_ANY_LAYOUT) |
         if (use_packed) (1 << virtio.c.VIRTIO_F_RING_PACKED) else 0;
 
-    const dev = try transport.register_net_dev(alloc, irq_line, mmio_rw);
+    const dev = try transport.register_net_dev(irq_line, mmio_rw);
     dev.set_device_features(device_features);
     dev.set_queue_init_proc(init_queue);
 

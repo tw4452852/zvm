@@ -19,13 +19,11 @@ pub const Dev = struct {
     const Self = @This();
     const Handler = *const fn (*Self, u64, io.Operation, []u8) anyerror!void;
 
-    allocator: std.mem.Allocator,
-    name: []const u8,
+    name: [32]u8 = undefined,
     irq: u32,
     start: u64,
     len: u64,
     specific_handler: Handler,
-    next: ?*Dev,
     kind: Kind,
 
     status: u32 = undefined,
@@ -47,26 +45,21 @@ pub const Dev = struct {
     avail_addr: u64 = undefined,
     used_addr: u64 = undefined,
 
-    pub fn init(kind: Kind, allocator: std.mem.Allocator, name: []const u8, irq: u32, start: u64, len: u64, next: ?*Dev, h: Handler) !*Self {
+    pub fn init(self: *Self, kind: Kind, name: []const u8, irq: u32, start: u64, len: u64, h: Handler) !void {
+        try mmio.register_handler(start, len, handler, self);
+
         const dev: Self = .{
-            .name = name,
             .irq = irq,
             .start = start,
             .len = len,
-            .next = next,
-            .allocator = allocator,
             .specific_handler = h,
             .kind = kind,
         };
-        const pdev = try allocator.create(Self);
-        pdev.* = dev;
-
-        return pdev;
+        self.* = dev;
+        @memcpy(self.name[0..name.len], name);
     }
 
-    pub fn deinit(self: *Self) void {
-        self.allocator.free(self);
-    }
+    pub fn deinit(_: *Self) void {}
 
     pub fn set_device_features(self: *Self, features: u64) void {
         self.device_features = features;
@@ -271,29 +264,29 @@ pub const Dev = struct {
     }
 };
 
-var registered_devs: ?*Dev = null;
+const max_devs = 32;
+var registered_devs: [max_devs]Dev = undefined;
 var registered_num: usize = 0;
 
-pub fn get_registered_devs() ?*Dev {
-    return registered_devs;
+pub fn get_registered_devs() []Dev {
+    return registered_devs[0..registered_num];
 }
 
-fn register_dev(kind: Kind, allocator: std.mem.Allocator, irq: u32, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
+fn register_dev(kind: Kind, irq: u32, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
     const addr = mmio.alloc_space(IO_SIZE);
-    const name = try fmt.allocPrint(allocator, "virtio_mmio{}", .{registered_num});
-    const pdev = try Dev.init(kind, allocator, name, irq, addr, IO_SIZE, registered_devs, h);
 
-    try mmio.register_handler(addr, IO_SIZE, Dev.handler, pdev);
+    const pdev = &registered_devs[registered_num];
+    var buf: [64]u8 = undefined;
+    const name = try fmt.bufPrint(&buf, "virtio_mmio{}", .{registered_num});
+    try pdev.init(kind, name, irq, addr, IO_SIZE, h);
 
-    registered_devs = pdev;
     registered_num += 1;
-
     return pdev;
 }
 
-pub fn register_blk_dev(allocator: std.mem.Allocator, irq: u32, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
-    return register_dev(.blk, allocator, irq, h);
+pub fn register_blk_dev(irq: u32, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
+    return register_dev(.blk, irq, h);
 }
-pub fn register_net_dev(allocator: std.mem.Allocator, irq: u32, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
-    return register_dev(.net, allocator, irq, h);
+pub fn register_net_dev(irq: u32, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
+    return register_dev(.net, irq, h);
 }

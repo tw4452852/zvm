@@ -26,13 +26,11 @@ pub const Dev = struct {
         pba: [max_queue_num + 1]u1,
     };
 
-    allocator: mem.Allocator,
     irq: u32,
     device_feature: u64 = 0,
     driver_features: u64 = 0,
     specific_handler: Handler,
     pdev: *pci.Dev,
-    next: ?*Dev = null,
     init_queue_proc: *const fn (dev: *Self, q: *virtio.Q) anyerror!void = undefined,
     bar0: BAR0,
     bar1: BAR1,
@@ -45,11 +43,9 @@ pub const Dev = struct {
         msix_idx: ?usize = null,
     } = .{.{ .size = 0, .descs = 0, .avail = 0, .used = 0, .msix_idx = null }} ** max_queue_num,
     not_support_ioeventfd: bool = false,
-    use_msix: bool = false,
     global_msix_ctrl: *u16,
 
-    pub fn init(allocator: mem.Allocator, irq: u32, vendor_id: u16, device_id: u16, subsys_vendor_id: u16, subsys_id: u16, class: u24, specific_handler: Handler) !*Self {
-        const self = try allocator.create(Self);
+    pub fn init(self: *Self, irq: u32, vendor_id: u16, device_id: u16, subsys_vendor_id: u16, subsys_id: u16, class: u24, specific_handler: Handler) !void {
         const pdev = try pci.register(vendor_id, device_id, subsys_vendor_id, subsys_id, class, irq);
 
         // prepare bar0
@@ -130,7 +126,6 @@ pub const Dev = struct {
         msix_cap.* = msix_cfg;
 
         const dev: Self = .{
-            .allocator = allocator,
             .irq = irq,
             .pdev = pdev,
             .specific_handler = specific_handler,
@@ -145,13 +140,9 @@ pub const Dev = struct {
         };
 
         self.* = dev;
-
-        return self;
     }
 
-    pub fn deinit(self: *Self) void {
-        self.allocator.free(self);
-    }
+    pub fn deinit(_: *Self) void {}
 
     pub fn set_device_features(self: *Self, features: u64) void {
         self.device_feature = features;
@@ -309,7 +300,6 @@ pub const Dev = struct {
 
         if (offset == @offsetOf(c.virtio_pci_common_cfg, "queue_msix_vector") and op == .Write) {
             self.vq_properties[i].msix_idx = mem.readIntLittle(u16, data[0..2]);
-            self.use_msix = true;
         }
 
         if (offset == @offsetOf(c.virtio_pci_common_cfg, "msix_config") and op == .Write) std.debug.assert(self.bar0.cfg.msix_config == 0); // config vector should be the first in msix table
@@ -339,14 +329,15 @@ pub const Dev = struct {
     }
 };
 
-var registered_devs: ?*Dev = null;
+const max_devs = 32;
+var registered_devs: [max_devs]Dev = undefined;
 var registered_num: usize = 0;
 
-pub fn get_registered_devs() ?*Dev {
-    return registered_devs;
+pub fn get_registered_devs() []Dev {
+    return registered_devs[0..registered_num];
 }
 
-fn register_dev(comptime kind: enum { blk, net }, allocator: mem.Allocator, irq: u32, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
+fn register_dev(comptime kind: enum { blk, net }, irq: u32, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
     const redhat_qumranet_vendor = 0x1af4;
     const device_id = switch (kind) {
         .blk => 0x1001, // PCI_DEVICE_ID_VIRTIO_BLK
@@ -361,19 +352,20 @@ fn register_dev(comptime kind: enum { blk, net }, allocator: mem.Allocator, irq:
         .net => 0x020000, // PCI_CLASS_NET
     };
 
-    const vpdev = try Dev.init(allocator, irq, redhat_qumranet_vendor, device_id, redhat_qumranet_vendor, subsys_id, class, h);
+    if (registered_num == max_devs) return error.TOO_MANY;
 
-    vpdev.next = registered_devs;
-    registered_devs = vpdev;
+    const vpdev = &registered_devs[registered_num];
+    try vpdev.init(irq, redhat_qumranet_vendor, device_id, redhat_qumranet_vendor, subsys_id, class, h);
+
     registered_num += 1;
 
     return vpdev;
 }
 
-pub fn register_blk_dev(allocator: mem.Allocator, irq: u32, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
-    return register_dev(.blk, allocator, irq, h);
+pub fn register_blk_dev(irq: u32, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
+    return register_dev(.blk, irq, h);
 }
 
-pub fn register_net_dev(allocator: mem.Allocator, irq: u32, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
-    return register_dev(.net, allocator, irq, h);
+pub fn register_net_dev(irq: u32, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
+    return register_dev(.net, irq, h);
 }
