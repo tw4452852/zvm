@@ -4,13 +4,13 @@ const os = std.os;
 const mem = std.mem;
 const process = std.process;
 const fmt = std.fmt;
-const Arch = @import("arch/index.zig").Arch;
 const portio = @import("portio.zig");
 const stdio = @import("stdio.zig");
 const vcpu = @import("vcpu.zig");
 const virtio_blk = @import("virtio_blk.zig");
 const virtio_net = @import("virtio_net.zig");
 
+pub const Arch = @import("arch/index.zig").Arch;
 pub const pci = @import("pci.zig");
 pub const kvm = @import("kvm.zig");
 pub const mmio = @import("mmio.zig");

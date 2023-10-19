@@ -1,10 +1,13 @@
-var next: u8 = switch (@import("builtin").target.cpu.arch) {
-    .x86_64 => 5,
-    .aarch64 => 32,
-    else => unreachable,
-};
+const root = @import("root");
+const Arch = root.Arch;
 
-pub fn alloc() u8 {
+var next: u32 = Arch.start_irq;
+
+pub fn alloc() u32 {
     defer next += 1;
     return next;
+}
+
+pub fn gsi(irq: u32) u32 {
+	return irq - Arch.start_irq;
 }

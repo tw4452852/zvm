@@ -24,6 +24,8 @@ var dtb_addr: u64 = undefined;
 var gic_fd: os.fd_t = undefined;
 var num_cpus: usize = undefined;
 
+pub const start_irq = 32;
+
 pub fn init_vm(num_cores: usize) !void {
     num_cpus = num_cores;
     try check(libfdt.fdt_create(&dts, dts.len));

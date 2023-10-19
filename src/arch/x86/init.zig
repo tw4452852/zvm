@@ -13,6 +13,8 @@ const mpspec = @import("mpspec_def.zig");
 const mmio = root.mmio;
 const virtio_mmio = root.virtio_mmio;
 
+pub const start_irq = 5;
+
 pub fn init_vm(num_cores: usize) !void {
     const vm = kvm.getVM();
 

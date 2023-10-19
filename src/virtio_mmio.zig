@@ -274,7 +274,7 @@ pub fn get_registered_devs() ?*Dev {
     return registered_devs;
 }
 
-fn register_dev(kind: Kind, allocator: std.mem.Allocator, irq: u8, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
+fn register_dev(kind: Kind, allocator: std.mem.Allocator, irq: u32, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
     const addr = mmio.alloc_space(IO_SIZE);
     const name = try fmt.allocPrint(allocator, "virtio_mmio{}", .{registered_num});
     const pdev = try Dev.init(kind, allocator, name, irq, addr, IO_SIZE, registered_devs, h);
@@ -287,9 +287,9 @@ fn register_dev(kind: Kind, allocator: std.mem.Allocator, irq: u8, h: *const fn 
     return pdev;
 }
 
-pub fn register_blk_dev(allocator: std.mem.Allocator, irq: u8, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
+pub fn register_blk_dev(allocator: std.mem.Allocator, irq: u32, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
     return register_dev(.blk, allocator, irq, h);
 }
-pub fn register_net_dev(allocator: std.mem.Allocator, irq: u8, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
+pub fn register_net_dev(allocator: std.mem.Allocator, irq: u32, h: *const fn (*Dev, u64, io.Operation, []u8) anyerror!void) !*Dev {
     return register_dev(.net, allocator, irq, h);
 }
