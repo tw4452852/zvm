@@ -5,6 +5,7 @@ const kvm = @import("root").kvm;
 const virtio = @import("virtio.zig");
 const mem = std.mem;
 const mmio = @import("mmio.zig");
+const MSIX = @import("irq.zig").MSIX;
 pub const c = @cImport({
     @cInclude("linux/virtio_pci.h");
 });
@@ -40,8 +41,9 @@ pub const Dev = struct {
         descs: u64,
         avail: u64,
         used: u64,
-        msix_idx: ?usize = null,
-    } = .{.{ .size = 0, .descs = 0, .avail = 0, .used = 0, .msix_idx = null }} ** max_queue_num,
+        msix_idx: ?usize,
+        msix: ?MSIX,
+    } = .{.{ .size = 0, .descs = 0, .avail = 0, .used = 0, .msix_idx = null, .msix = null }} ** max_queue_num,
     not_support_ioeventfd: bool = false,
     global_msix_ctrl: *u16,
 
@@ -165,11 +167,15 @@ pub const Dev = struct {
         if (self.vq_properties[i].msix_idx) |msix_idx| {
             const msix_ctrl = mem.readIntLittle(u16, mem.asBytes(self.global_msix_ctrl));
             if (msix_ctrl & pci.c.PCI_MSIX_FLAGS_ENABLE != 0) {
-                const irq = self.bar1.queue_msix[msix_idx].data;
                 if (msix_ctrl & pci.c.PCI_MSIX_FLAGS_MASKALL != 0 or self.bar1.queue_msix[msix_idx].ctrl & mem.nativeToLittle(u32, pci.c.PCI_MSIX_ENTRY_CTRL_MASKBIT) != 0) {
                     // set pending in PBA
                     self.bar1.pba[msix_idx] = 1;
-                } else try kvm.triggerIrq(irq);
+                } else {
+                    if (self.vq_properties[i].msix == null) {
+                        self.vq_properties[i].msix = try MSIX.init(self.get_msix_irq(q).?);
+                    }
+                    try self.vq_properties[i].msix.?.trigger();
+                }
                 return;
             }
         }
@@ -271,6 +277,11 @@ pub const Dev = struct {
                     } else {
                         self.vqs[i].?.deinit();
                         self.vqs[i] = null;
+                        if (self.vq_properties[i].msix) |*msix| {
+                            msix.deinit();
+                            self.vq_properties[i].msix = null;
+                            self.vq_properties[i].msix_idx = null;
+                        }
                     }
                 },
             },
@@ -302,7 +313,9 @@ pub const Dev = struct {
             self.vq_properties[i].msix_idx = mem.readIntLittle(u16, data[0..2]);
         }
 
-        if (offset == @offsetOf(c.virtio_pci_common_cfg, "msix_config") and op == .Write) std.debug.assert(self.bar0.cfg.msix_config == 0); // config vector should be the first in msix table
+        if (offset == @offsetOf(c.virtio_pci_common_cfg, "msix_config") and op == .Write) {
+            std.debug.assert(self.bar0.cfg.msix_config == 0); // config vector should be the first in msix table
+        }
 
         // reset device
         if (offset == @offsetOf(c.virtio_pci_common_cfg, "device_status") and op == .Write and self.bar0.cfg.device_status == 0) {

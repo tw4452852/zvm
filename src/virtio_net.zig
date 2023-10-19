@@ -20,7 +20,7 @@ var tap_f: ?fs.File = null;
 var vhost_f: ?fs.File = null;
 
 const use_packed = false;
-const transport = virtio_mmio;
+const transport = virtio_pci;
 
 pub fn init(alloc: std.mem.Allocator) !void {
     const irq_line = irq.alloc();
