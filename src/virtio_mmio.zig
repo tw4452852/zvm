@@ -84,9 +84,13 @@ pub const Dev = struct {
         }
     }
 
-    pub fn assert_ring_irq(self: *Self) !void {
+    pub fn assert_ring_irq(self: *Self, _: *const virtio.Q) !void {
         self.irq_status |= c.VIRTIO_MMIO_INT_VRING;
         try self.update_irq();
+    }
+
+    pub fn get_msix_irq(_: *const Self, _: *const virtio.Q) ?u32 {
+        return null;
     }
 
     pub fn handler(ctx: ?*anyopaque, offset: u64, op: io.Operation, data: []u8) anyerror!void {

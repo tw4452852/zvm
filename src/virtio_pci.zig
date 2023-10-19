@@ -161,6 +161,14 @@ pub const Dev = struct {
         self.init_queue_proc = init_fn;
     }
 
+    pub fn get_msix_irq(self: *const Self, q: *const virtio.Q) ?u32 {
+        const i = (@intFromPtr(q) - @intFromPtr(&self.vqs)) / @sizeOf(@TypeOf(q.*));
+        if (self.vq_properties[i].msix_idx) |msix_idx| {
+            return self.bar1.queue_msix[msix_idx].data;
+        }
+        return null;
+    }
+
     pub fn assert_ring_irq(self: *Self, q: *const virtio.Q) !void {
         const i = (@intFromPtr(q) - @intFromPtr(&self.vqs)) / @sizeOf(@TypeOf(q.*));
         if (self.vq_properties[i].msix_idx) |msix_idx| {

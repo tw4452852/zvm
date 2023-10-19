@@ -144,8 +144,12 @@ fn init_queue(dev: *transport.Dev, q: *virtio.Q) !void {
 
                     const eventfd = try std.os.eventfd(0, 0);
 
-                    const handle = try Thread.spawn(.{}, call_poll, .{ dev, eventfd, q });
-                    handle.detach();
+                    if (dev.get_msix_irq(q)) |msix_irq| {
+                        try kvm.addIrqFd(irq.gsi(msix_irq), eventfd, null);
+                    } else {
+                        const handle = try Thread.spawn(.{}, call_poll, .{ dev, eventfd, q });
+                        handle.detach();
+                    }
 
                     file.fd = eventfd;
                     try check(ioctl(vhost_f.?.handle, virtio.c.VHOST_SET_VRING_CALL, @intFromPtr(&file)));
