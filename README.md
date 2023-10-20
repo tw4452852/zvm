@@ -1,5 +1,5 @@
 # zvm
-Stand-alone Native Linux KVM with Zig
+A KVM frontend written in Zig
 
 ## Build
 
