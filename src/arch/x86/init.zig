@@ -207,10 +207,10 @@ pub fn load_kernel(kernel_path: []const u8, cmd: *root.Cmdline, initrd_path: ?[]
 }
 
 fn append_virtio_mmio_cmdline(cmd: *root.Cmdline) !void {
-    var virtio_mmio_dev: ?*virtio_mmio.Dev = virtio_mmio.get_registered_devs();
+    const devs = virtio_mmio.get_registered_devs();
     var buf: [64]u8 = undefined;
 
-    while (virtio_mmio_dev) |dev| : (virtio_mmio_dev = dev.next) {
+    for (devs) |dev| {
         const s = try std.fmt.bufPrint(&buf, " virtio_mmio.device=0x{x}@0x{x}:{}", .{ dev.len, dev.start, dev.irq });
         try cmd.appendSlice(s);
     }

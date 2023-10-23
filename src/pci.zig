@@ -4,6 +4,7 @@ const mmio = @import("mmio.zig");
 const io = @import("io.zig");
 const builtin = @import("builtin");
 const mem = std.mem;
+const portio = root.portio;
 pub const c = @cImport({
     @cInclude("linux/pci_regs.h");
 });
@@ -11,7 +12,7 @@ pub const c = @cImport({
 pub const cfg_size = 1 << 28;
 pub var cfg_start: ?u64 = null;
 
-pub const addrspace_start = 4 << 32;
+pub const addrspace_start = mmio.GAP_START + mmio.GAP_SIZE;
 pub const addrspace_size = 1 << 32;
 var free_space_addr: u64 = addrspace_start;
 
@@ -26,14 +27,22 @@ fn alloc_space(size: u64) u64 {
 pub fn init() !void {
     cfg_start = mmio.alloc_space(cfg_size);
     try mmio.register_handler(cfg_start.?, cfg_size, handle, null);
+
+    const addr_port = 0xcf8;
+    const data_port = 0xcfc;
+    try portio.register_handler(addr_port, 4, handle_addr_port);
+    try portio.register_handler(data_port, 4, handle_data_port);
+
+    // register a dummy host bridge as 0:0:0
+    const PCI_CLASS_BRIDGE_HOST = 0x600;
+    _ = try register(0, 0, 0, 0, PCI_CLASS_BRIDGE_HOST, 0xff);
 }
 
 pub fn deinit() void {}
 
 const Addr = switch (builtin.cpu.arch.endian()) {
     .Little => packed struct {
-        reg_offset: u2,
-        register_number: u10,
+        reg_offset: u12,
         function_number: u3,
         device_number: u5,
         bus_number: u8,
@@ -46,8 +55,7 @@ const Addr = switch (builtin.cpu.arch.endian()) {
         bus_number: u8,
         device_number: u5,
         function_number: u3,
-        register_number: u10,
-        reg_offset: u2,
+        reg_offset: u12,
     },
 };
 
@@ -57,7 +65,8 @@ pub const COMM = extern struct {
     command: u16,
     status: u16,
     revision_id: u8,
-    class: [3]u8,
+    proif: u8,
+    class: u16,
     cacheline_size: u8,
     latency_timer: u8,
     header_type: u8,
@@ -144,7 +153,7 @@ pub const Dev = struct {
     }
 
     inline fn mmio_addr(pci_addr: u64) u64 {
-        return mmio.GAP_START + mmio.GAP_SIZE + (pci_addr - addrspace_start);
+        return pci_addr;
     }
 
     pub fn bar_gpa(self: *const Self, i: usize) u64 {
@@ -209,7 +218,7 @@ pub fn registered_devs() []Dev {
     return devs[0..registered_num];
 }
 
-pub fn register(vendor_id: u16, device_id: u16, subsys_vendor_id: u16, subsys_id: u16, class: u24, irq: u32) !*Dev {
+pub fn register(vendor_id: u16, device_id: u16, subsys_vendor_id: u16, subsys_id: u16, class: u16, irq: u32) !*Dev {
     if (registered_num == 32) {
         return error.TOO_MANY;
     }
@@ -222,7 +231,7 @@ pub fn register(vendor_id: u16, device_id: u16, subsys_vendor_id: u16, subsys_id
                 .device_id = mem.nativeToLittle(u16, device_id),
                 .command = c.PCI_COMMAND_IO | c.PCI_COMMAND_MEMORY,
                 .header_type = c.PCI_HEADER_TYPE_NORMAL,
-                .class = .{ @as(u8, @truncate(class)), @as(u8, @truncate(class >> 8)), @as(u8, @truncate(class >> 16)) },
+                .class = mem.nativeToLittle(u16, class),
                 .subsys_vendor_id = mem.nativeToLittle(u16, subsys_vendor_id),
                 .subsys_id = mem.nativeToLittle(u16, subsys_id),
                 .irq_line = @as(u8, @intCast(irq)),
@@ -238,7 +247,7 @@ pub fn register(vendor_id: u16, device_id: u16, subsys_vendor_id: u16, subsys_id
 
 fn handle(_: ?*anyopaque, offset: u64, op: io.Operation, data: []u8) !void {
     const addr: Addr = @bitCast(@as(u32, @truncate(offset)));
-    const dev: ?*Dev = if (addr.device_number < registered_num) &devs[addr.device_number] else null;
+    const dev: ?*Dev = if (addr.device_number < registered_num and addr.function_number == 0 and addr.bus_number == 0) &devs[addr.device_number] else null;
     const reg_offset: u12 = @truncate(offset);
 
     switch (op) {
@@ -256,4 +265,23 @@ fn handle(_: ?*anyopaque, offset: u64, op: io.Operation, data: []u8) !void {
     }
 
     //std.log.info("dev{}: {} 0x{x} {any}", .{ addr.device_number, op, reg_offset, data });
+}
+
+var config_addr: u32 = undefined;
+
+fn handle_addr_port(offset: u16, op: io.Operation, data: []u8) !void {
+    switch (op) {
+        .Read => @memcpy(data, mem.asBytes(&config_addr)[offset..][0..data.len]),
+        .Write => @memcpy(@constCast(mem.asBytes(&config_addr)[offset..][0..data.len]), data),
+    }
+}
+
+fn handle_data_port(offset: u16, op: io.Operation, data: []u8) !void {
+    const addr = mem.zeroInit(Addr, .{
+        .reg_offset = @as(u12, @truncate((config_addr & 0xff) + offset)),
+        .function_number = @as(u3, @truncate((config_addr >> 8) & 0x7)),
+        .device_number = @as(u5, @truncate((config_addr >> 11) & 0x1f)),
+        .bus_number = 0,
+    });
+    return handle(null, @as(u32, @bitCast(addr)), op, data);
 }

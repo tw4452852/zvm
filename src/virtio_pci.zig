@@ -47,7 +47,7 @@ pub const Dev = struct {
     not_support_ioeventfd: bool = false,
     global_msix_ctrl: *u16,
 
-    pub fn init(self: *Self, irq: u32, vendor_id: u16, device_id: u16, subsys_vendor_id: u16, subsys_id: u16, class: u24, specific_handler: Handler) !void {
+    pub fn init(self: *Self, irq: u32, vendor_id: u16, device_id: u16, subsys_vendor_id: u16, subsys_id: u16, class: u16, specific_handler: Handler) !void {
         const pdev = try pci.register(vendor_id, device_id, subsys_vendor_id, subsys_id, class, irq);
 
         // prepare bar0
@@ -361,8 +361,8 @@ fn register_dev(comptime kind: enum { blk, net }, irq: u32, h: *const fn (*Dev, 
         .net => virtio.c.VIRTIO_ID_NET,
     };
     const class = switch (kind) {
-        .blk => 0x018000, // PCI_CLASS_BLK
-        .net => 0x020000, // PCI_CLASS_NET
+        .blk => 0x0180, // PCI_CLASS_BLK
+        .net => 0x0200, // PCI_CLASS_NET
     };
 
     if (registered_num == max_devs) return error.TOO_MANY;

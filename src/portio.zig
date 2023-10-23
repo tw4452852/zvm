@@ -33,6 +33,6 @@ pub fn register_handler(start: u16, count: u16, h: *const fn (u16, io.Operation,
 
 pub fn handle(port: u16, op: io.Operation, val: []u8) !void {
     for (handler_array[0..handlers]) |h| {
-        if (h.start <= port and port <= h.end) return h.handle(port - h.start, op, val);
+        if (h.start <= port and port < h.end) return h.handle(port - h.start, op, val);
     }
 }
