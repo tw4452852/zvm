@@ -8,6 +8,7 @@ const stdio = @import("stdio.zig");
 const vcpu = @import("vcpu.zig");
 const virtio_blk = @import("virtio_blk.zig");
 const virtio_net = @import("virtio_net.zig");
+const vfio = @import("vfio.zig");
 
 pub const Arch = @import("arch/index.zig").Arch;
 pub const pci = @import("pci.zig");
@@ -25,6 +26,7 @@ pub const c = @cImport({
     @cInclude("linux/if_tun.h");
     @cInclude("linux/if.h");
     @cInclude("linux/sockios.h");
+    @cInclude("linux/vfio.h");
 });
 
 pub var enable_debug = false;
@@ -42,6 +44,7 @@ fn usage() !void {
         \\ -c [number of core]
         \\ -debug
         \\ -n # enable virtio-net
+        \\ -p [path to pci device in sysfs, e.g. /sys/bus/pci/0000:00:01.0/]
     , .{});
     return error.USAGE;
 }
@@ -50,6 +53,7 @@ fn interrupt_handler(_: c_int) callconv(.C) void {
     log.info("interrupted, exiting...", .{});
     stdio.stopCapture();
     virtio_net.deinit();
+    vfio.deinit();
 
     log.info("done", .{});
     os.exit(0);
@@ -78,6 +82,7 @@ pub fn main() anyerror!void {
     var cmdline = try Cmdline.fromSlice("console=ttyS0 panic=1");
     var ram_size: usize = 0x100_00000; // 256M
     var enable_virtio_net = false;
+    var passthrough_pci_devs = std.ArrayList([]const u8).init(allocator);
 
     var num_cores: u8 = 1;
     while (nextArg(args, &arg_idx)) |arg| {
@@ -124,6 +129,11 @@ pub fn main() anyerror!void {
             }
             // TODO: something wrong with memory size > 4G
             if (ram_size >= mmio.GAP_START) @panic("not support this large memory size right now!");
+        } else if (mem.eql(u8, arg, "-p")) {
+            const path = nextArg(args, &arg_idx) orelse {
+                return usage();
+            };
+            try passthrough_pci_devs.append(path);
         } else {
             return usage();
         }
@@ -152,6 +162,11 @@ pub fn main() anyerror!void {
 
     if (enable_virtio_net) try virtio_net.init(allocator);
     defer if (enable_virtio_net) virtio_net.deinit();
+
+    if (passthrough_pci_devs.items.len > 0) {
+        try vfio.init(allocator, passthrough_pci_devs.items);
+    }
+    defer if (passthrough_pci_devs.items.len > 0) vfio.deinit();
 
     // load kernel into user memory
     try Arch.load_kernel(kernel_file_path.?, &cmdline, initrd_file_path);
