@@ -14,6 +14,7 @@ const os = std.os;
 const Thread = std.Thread;
 const ioctl = os.linux.ioctl;
 const check = @import("helpers.zig").check_non_zero;
+const native_endian = @import("builtin").cpu.arch.endian();
 
 var allocator: mem.Allocator = undefined;
 var tap_f: ?fs.File = null;
@@ -172,12 +173,10 @@ fn init_queue(dev: *transport.Dev, q: *virtio.Q) !void {
 fn call_poll(dev: *transport.Dev, eventfd: os.fd_t, vq: *const virtio.Q) !void {
     const f: fs.File = .{
         .handle = eventfd,
-        .capable_io_mode = .blocking,
-        .intended_io_mode = .blocking,
     };
     const reader = f.reader();
     while (true) {
-        const n = try reader.readIntNative(u64);
+        const n = try reader.readInt(u64, native_endian);
         if (n > 0) {
             try dev.assert_ring_irq(vq);
         }

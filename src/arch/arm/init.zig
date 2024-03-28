@@ -107,12 +107,12 @@ fn generate_cpus_node(num_cores: usize) !void {
 }
 
 pub fn load_kernel(kernel_path: []const u8, cmd: *const root.Cmdline, initrd_path: ?[]const u8) !void {
-    var ram = kvm.getMem();
+    const ram = kvm.getMem();
     const f = try fs.cwd().openFile(kernel_path, .{});
     defer f.close();
 
     const fsize = (try f.stat()).size;
-    const data = try os.mmap(null, fsize, c.PROT_READ, c.MAP_PRIVATE, f.handle, 0);
+    const data = try os.mmap(null, fsize, c.PROT_READ, .{ .TYPE = .PRIVATE }, f.handle, 0);
 
     // get load offset
     const HEADER = struct {

@@ -14,12 +14,11 @@ pub fn startCapture() !void {
     original_termios = try os.tcgetattr(tty.handle);
 
     var raw = original_termios;
-    raw.lflag &= ~@as(
-        os.linux.tcflag_t,
-        os.linux.ECHO | os.linux.ICANON,
-    );
-    raw.cc[os.linux.V.TIME] = 1;
-    raw.cc[os.linux.V.MIN] = 1;
+    raw.lflag.ECHO = false;
+    raw.lflag.ICANON = false;
+
+    raw.cc[@intFromEnum(os.linux.V.TIME)] = 1;
+    raw.cc[@intFromEnum(os.linux.V.MIN)] = 1;
     try os.tcsetattr(tty.handle, .FLUSH, raw);
 
     handle = try Thread.spawn(.{}, captureStdin, .{tty});

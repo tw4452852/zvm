@@ -1,9 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-pub fn build(b: *std.build.Builder) void {
+pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
-
     const optimize = b.standardOptimizeOption(.{});
 
     const exe = b.addExecutable(.{
@@ -14,32 +13,14 @@ pub fn build(b: *std.build.Builder) void {
     });
     exe.linkLibC();
 
-    const arch = if (target.cpu_arch) |arch| arch else builtin.cpu.arch;
+    const arch = target.result.cpu.arch;
     if (arch.isARM() or arch.isAARCH64()) {
-        const libfdt = b.addStaticLibrary(.{
-            .name = "libfdt",
+        const libfdt = b.dependency("libfdt", .{
             .target = target,
             .optimize = optimize,
-        });
-        const libfdtSources = [_][]const u8{
-            "src/libfdt/fdt.c",
-            "src/libfdt/fdt_addresses.c",
-            "src/libfdt/fdt_check.c",
-            "src/libfdt/fdt_empty_tree.c",
-            "src/libfdt/fdt_overlay.c",
-            "src/libfdt/fdt_ro.c",
-            "src/libfdt/fdt_rw.c",
-            "src/libfdt/fdt_strerror.c",
-            "src/libfdt/fdt_sw.c",
-            "src/libfdt/fdt_wip.c",
-        };
-        const libfdtFlags = [_][]const u8{};
-        libfdt.addCSourceFiles(&libfdtSources, &libfdtFlags);
-        libfdt.linkLibC();
-        libfdt.addIncludePath(.{ .path = "src/libfdt"});
+        }).artifact("libfdt");
 
         exe.linkLibrary(libfdt);
-        exe.addIncludePath(.{ .path = "src/libfdt"});
     }
 
     b.installArtifact(exe);

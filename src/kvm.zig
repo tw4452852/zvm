@@ -7,7 +7,6 @@ const c = @import("root").c;
 const assert = std.debug.assert;
 const mmio = @import("mmio.zig");
 const Arch = @import("arch/index.zig").Arch;
-const hasFn = std.meta.trait.hasFn;
 
 var f: fs.File = undefined;
 var vm: os.fd_t = undefined;
@@ -77,7 +76,7 @@ pub fn createVM(ram_size: usize) !void {
     vm = @intCast(ret);
 
     const real_size = if (ram_size < mmio.GAP_START) ram_size else ram_size + mmio.GAP_SIZE;
-    mem = try os.mmap(null, real_size, c.PROT_READ | c.PROT_WRITE, c.MAP_PRIVATE | c.MAP_ANONYMOUS | c.MAP_NORESERVE, -1, 0);
+    mem = try os.mmap(null, real_size, c.PROT_READ | c.PROT_WRITE, .{ .TYPE = .PRIVATE, .ANONYMOUS = true, .NORESERVE = true }, -1, 0);
     var region: c.kvm_userspace_memory_region = .{
         .slot = 0,
         .guest_phys_addr = 0,
@@ -136,12 +135,12 @@ pub fn getRun(vcpu: os.fd_t) ![]align(4096) u8 {
         log.err("failed to get run size: {}", .{os.linux.getErrno(ret)});
         return error.RUN;
     }
-    return try os.mmap(null, ret, c.PROT_READ | c.PROT_WRITE, c.MAP_SHARED, vcpu, 0);
+    return try os.mmap(null, ret, c.PROT_READ | c.PROT_WRITE, .{ .TYPE = .SHARED }, vcpu, 0);
 }
 
 var irq_mutex = std.Thread.Mutex{};
 
-const setIrqLevelInner = if (hasFn("setIrqLevelInner")(Arch)) Arch.setIrqLevelInner else struct {
+const setIrqLevelInner = if (@hasDecl(Arch, "setIrqLevelInner")) Arch.setIrqLevelInner else struct {
     pub fn setIrqLevelInner(irq: u32, level: u1) !void {
         const irq_level: c.kvm_irq_level = .{ .unnamed_0 = .{
             .irq = irq,

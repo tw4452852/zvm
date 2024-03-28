@@ -165,7 +165,7 @@ pub const Dev = struct {
     pub fn assert_ring_irq(self: *Self, q: *const virtio.Q) !void {
         const i = (@intFromPtr(q) - @intFromPtr(&self.vqs)) / @sizeOf(@TypeOf(q.*));
         if (self.vq_properties[i].msix_idx) |msix_idx| {
-            const msix_ctrl = mem.readIntLittle(u16, mem.asBytes(self.global_msix_ctrl));
+            const msix_ctrl = mem.readInt(u16, mem.asBytes(self.global_msix_ctrl), .little);
             if (msix_ctrl & pci.c.PCI_MSIX_FLAGS_ENABLE != 0) {
                 if (msix_ctrl & pci.c.PCI_MSIX_FLAGS_MASKALL != 0 or self.bar1.queue_msix[msix_idx].ctrl & mem.nativeToLittle(u32, pci.c.PCI_MSIX_ENTRY_CTRL_MASKBIT) != 0) {
                     // set pending in PBA
@@ -193,7 +193,7 @@ pub const Dev = struct {
 
     fn handler0(ctx: ?*anyopaque, offset: u64, op: io.Operation, data: []u8) !void {
         var self: *Self = @alignCast(@ptrCast(ctx));
-        const i = mem.readIntLittle(u16, mem.asBytes(&self.bar0.cfg.queue_select));
+        const i = mem.readInt(u16, mem.asBytes(&self.bar0.cfg.queue_select), .little);
 
         switch (offset) {
             @offsetOf(c.virtio_pci_common_cfg, "device_feature") => switch (op) {
@@ -206,62 +206,62 @@ pub const Dev = struct {
             },
             @offsetOf(c.virtio_pci_common_cfg, "guest_feature") => switch (op) {
                 .Write => if (self.bar0.cfg.guest_feature_select == 0) {
-                    self.driver_features |= mem.readIntLittle(u32, data[0..4]);
+                    self.driver_features |= mem.readInt(u32, data[0..4], .little);
                 } else {
-                    self.driver_features |= @as(u64, mem.readIntLittle(u32, data[0..4])) << 32;
+                    self.driver_features |= @as(u64, mem.readInt(u32, data[0..4], .little)) << 32;
                 },
                 else => unreachable,
             },
             @offsetOf(c.virtio_pci_common_cfg, "queue_size") => switch (op) {
-                .Read => mem.writeIntLittle(u16, data[0..2], 256),
-                .Write => self.vq_properties[i].size = mem.readIntLittle(u16, data[0..2]),
+                .Read => mem.writeInt(u16, data[0..2], 256, .little),
+                .Write => self.vq_properties[i].size = mem.readInt(u16, data[0..2], .little),
             },
             @offsetOf(c.virtio_pci_common_cfg, "queue_desc_lo") => switch (op) {
                 .Read => unreachable,
                 .Write => {
                     self.vq_properties[i].descs &= 0xffffffff_00000000;
-                    self.vq_properties[i].descs |= mem.readIntLittle(u32, data[0..4]);
+                    self.vq_properties[i].descs |= mem.readInt(u32, data[0..4], .little);
                 },
             },
             @offsetOf(c.virtio_pci_common_cfg, "queue_desc_hi") => switch (op) {
                 .Read => unreachable,
                 .Write => {
                     self.vq_properties[i].descs &= 0x00000000_ffffffff;
-                    self.vq_properties[i].descs |= (@as(u64, mem.readIntLittle(u32, data[0..4])) << 32);
+                    self.vq_properties[i].descs |= (@as(u64, mem.readInt(u32, data[0..4], .little)) << 32);
                 },
             },
             @offsetOf(c.virtio_pci_common_cfg, "queue_avail_lo") => switch (op) {
                 .Read => unreachable,
                 .Write => {
                     self.vq_properties[i].avail &= 0xffffffff_00000000;
-                    self.vq_properties[i].avail |= mem.readIntLittle(u32, data[0..4]);
+                    self.vq_properties[i].avail |= mem.readInt(u32, data[0..4], .little);
                 },
             },
             @offsetOf(c.virtio_pci_common_cfg, "queue_avail_hi") => switch (op) {
                 .Read => unreachable,
                 .Write => {
                     self.vq_properties[i].avail &= 0x00000000_ffffffff;
-                    self.vq_properties[i].avail |= (@as(u64, mem.readIntLittle(u32, data[0..4])) << 32);
+                    self.vq_properties[i].avail |= (@as(u64, mem.readInt(u32, data[0..4], .little)) << 32);
                 },
             },
             @offsetOf(c.virtio_pci_common_cfg, "queue_used_lo") => switch (op) {
                 .Read => unreachable,
                 .Write => {
                     self.vq_properties[i].used &= 0xffffffff_00000000;
-                    self.vq_properties[i].used |= mem.readIntLittle(u32, data[0..4]);
+                    self.vq_properties[i].used |= mem.readInt(u32, data[0..4], .little);
                 },
             },
             @offsetOf(c.virtio_pci_common_cfg, "queue_used_hi") => switch (op) {
                 .Read => unreachable,
                 .Write => {
                     self.vq_properties[i].used &= 0x00000000_ffffffff;
-                    self.vq_properties[i].used |= (@as(u64, mem.readIntLittle(u32, data[0..4])) << 32);
+                    self.vq_properties[i].used |= (@as(u64, mem.readInt(u32, data[0..4], .little)) << 32);
                 },
             },
             @offsetOf(c.virtio_pci_common_cfg, "queue_enable") => switch (op) {
-                .Read => if (self.vqs[i] != null) mem.writeIntLittle(u16, data[0..2], 1) else mem.writeIntLittle(u16, data[0..2], 0),
+                .Read => if (self.vqs[i] != null) mem.writeInt(u16, data[0..2], 1, .little) else mem.writeInt(u16, data[0..2], 0, .little),
                 .Write => {
-                    const enable = mem.readIntLittle(u16, data[0..2]);
+                    const enable = mem.readInt(u16, data[0..2], .little);
                     if (enable > 0) {
                         const eventfd = try std.os.eventfd(0, 0);
                         kvm.addIOEventFd(self.pdev.bar_gpa(0) + @offsetOf(BAR0, "notify"), @sizeOf(@TypeOf(self.bar0.notify)), eventfd, i) catch {
@@ -288,7 +288,7 @@ pub const Dev = struct {
             @offsetOf(BAR0, "notify") => switch (op) {
                 .Read => unreachable,
                 .Write => if (self.not_support_ioeventfd) {
-                    const qi = mem.readIntLittle(u32, data[0..4]);
+                    const qi = mem.readInt(u32, data[0..4], .little);
                     try self.vqs[qi].?.notifyAvail();
                 } else unreachable,
             },
@@ -310,7 +310,7 @@ pub const Dev = struct {
         }
 
         if (offset == @offsetOf(c.virtio_pci_common_cfg, "queue_msix_vector") and op == .Write) {
-            self.vq_properties[i].msix_idx = mem.readIntLittle(u16, data[0..2]);
+            self.vq_properties[i].msix_idx = mem.readInt(u16, data[0..2], .little);
         }
 
         if (offset == @offsetOf(c.virtio_pci_common_cfg, "msix_config") and op == .Write) {

@@ -35,7 +35,7 @@ pub fn init_vm(num_cores: usize) !void {
 }
 
 fn initMPTable(num_cores: usize) void {
-    var ram = kvm.getMem();
+    const ram = kvm.getMem();
     const mptable_start = 0x9fc00;
 
     var p = ram.ptr + mptable_start;
@@ -134,7 +134,7 @@ pub fn load_kernel(kernel_path: []const u8, cmd: *root.Cmdline, initrd_path: ?[]
     defer f.close();
 
     const fsize = (try f.stat()).size;
-    const data = try os.mmap(null, fsize, c.PROT_READ, c.MAP_PRIVATE, f.handle, 0);
+    const data = try os.mmap(null, fsize, c.PROT_READ, .{ .TYPE = .PRIVATE }, f.handle, 0);
 
     // get the header first
     var hdr: *bootparam.setup_header = @ptrCast(data.ptr + 0x1f1);
@@ -188,7 +188,7 @@ pub fn load_kernel(kernel_path: []const u8, cmd: *root.Cmdline, initrd_path: ?[]
         defer initrd_f.close();
 
         const initrd_size = (try initrd_f.stat()).size;
-        const initrd_data = try os.mmap(null, initrd_size, c.PROT_READ, c.MAP_PRIVATE, initrd_f.handle, 0);
+        const initrd_data = try os.mmap(null, initrd_size, c.PROT_READ, .{ .TYPE = .PRIVATE }, initrd_f.handle, 0);
 
         var initrd_addr = @min(hdr.initrd_addr_max, ram.len);
         const kernel_end = kernel_addr + kernel_size;

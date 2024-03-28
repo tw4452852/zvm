@@ -41,7 +41,7 @@ pub fn init() !void {
 pub fn deinit() void {}
 
 const Addr = switch (builtin.cpu.arch.endian()) {
-    .Little => packed struct {
+    .little => packed struct {
         reg_offset: u12,
         function_number: u3,
         device_number: u5,
@@ -49,7 +49,7 @@ const Addr = switch (builtin.cpu.arch.endian()) {
         reserved: u3,
         enable_bit: u1,
     },
-    .Big => packed struct {
+    .big => packed struct {
         enable_bit: u1,
         reserved: u3,
         bus_number: u8,
@@ -174,18 +174,18 @@ pub const Dev = struct {
                         if (mem.eql(u8, data, &.{ 0xff, 0xff, 0xff, 0xff })) {
                             // prepare to query bar size
                             if (is_lowpart) {
-                                mem.writeIntLittle(u32, mem.asBytes(&self.cfg)[offset..][0..4], @as(u32, @truncate(~(bar_size - 1) | (self.bar_addr[i].? & 0xf))));
+                                mem.writeInt(u32, mem.asBytes(&self.cfg)[offset..][0..4], @as(u32, @truncate(~(bar_size - 1) | (self.bar_addr[i].? & 0xf))), .little);
                             } else {
-                                mem.writeIntLittle(u32, mem.asBytes(&self.cfg)[offset..][0..4], @as(u32, @truncate(bar_size >> 32)));
+                                mem.writeInt(u32, mem.asBytes(&self.cfg)[offset..][0..4], @as(u32, @truncate(bar_size >> 32)), .little);
                             }
                             return;
                         } else {
                             if (is_lowpart) {
                                 S.new_bar_addrs[i] &= 0xffffffff_00000000;
-                                S.new_bar_addrs[i] |= (mem.readIntLittle(u32, data[0..4]) & 0xfffffff0);
+                                S.new_bar_addrs[i] |= (mem.readInt(u32, data[0..4], .little) & 0xfffffff0);
                             } else {
                                 S.new_bar_addrs[i] &= 0x00000000_ffffffff;
-                                S.new_bar_addrs[i] |= (@as(u64, mem.readIntLittle(u32, data[0..4])) << 32);
+                                S.new_bar_addrs[i] |= (@as(u64, mem.readInt(u32, data[0..4], .little)) << 32);
 
                                 try mmio.deregister_handler(self.bar_gpa(i), self.bar_size[i].?, self.bar_handle[i].?.h, self.bar_handle[i].?.ctx);
                                 try mmio.register_handler(mmio_addr(S.new_bar_addrs[i]), self.bar_size[i].?, self.bar_handle[i].?.h, self.bar_handle[i].?.ctx);
@@ -198,7 +198,7 @@ pub const Dev = struct {
             },
             c.PCI_ROM_ADDRESS => if (op == .Write and mem.eql(u8, data, mem.asBytes(&c.PCI_ROM_ADDRESS_MASK))) {
                 // Do not support ROM bar yet
-                mem.writeIntLittle(u32, data[0..4], 0);
+                mem.writeInt(u32, data[0..4], 0, .little);
                 return;
             },
             else => {},

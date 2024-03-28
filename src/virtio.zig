@@ -11,6 +11,7 @@ pub const c = @cImport({
 const kvm = @import("root").kvm;
 const fs = std.fs;
 const os = std.os;
+const native_endian = @import("builtin").cpu.arch.endian();
 
 pub const Q = struct {
     ring: union(enum) {
@@ -49,8 +50,6 @@ pub const Q = struct {
 
         const f: fs.File = .{
             .handle = eventfd,
-            .capable_io_mode = .blocking,
-            .intended_io_mode = .blocking,
         };
 
         return Self{
@@ -71,13 +70,13 @@ pub const Q = struct {
     pub fn waitAvail(self: *Self) !void {
         const reader = self.eventfd.reader();
         while (true) {
-            const n = try reader.readIntNative(u64);
+            const n = try reader.readInt(u64, native_endian);
             if (n > 0) break;
         }
     }
 
     pub fn notifyAvail(self: *Self) !void {
-        try self.eventfd.writer().writeIntNative(u64, 1);
+        try self.eventfd.writer().writeInt(u64, 1, native_endian);
     }
 
     pub fn getAvail(self: *Self) ?Desc {

@@ -72,7 +72,7 @@ pub fn main() anyerror!void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
-    var args = try process.argsAlloc(allocator);
+    const args = try process.argsAlloc(allocator);
     defer process.argsFree(allocator, args);
     var arg_idx: usize = 1; // skip exe name
 

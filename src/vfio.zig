@@ -216,7 +216,7 @@ fn setup_container_iommu_mapping(allocator: std.mem.Allocator) !void {
 }
 
 fn try_load_module(allocator: std.mem.Allocator, args: []const []const u8) void {
-    const res = std.ChildProcess.exec(.{
+    const res = std.ChildProcess.run(.{
         .allocator = allocator,
         .argv = args,
     }) catch |err| {

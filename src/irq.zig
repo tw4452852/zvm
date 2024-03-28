@@ -4,6 +4,7 @@ const mem = std.mem;
 const root = @import("root");
 const Arch = root.Arch;
 const kvm = root.kvm;
+const native_endian = @import("builtin").cpu.arch.endian();
 
 var next: u32 = Arch.start_irq;
 
@@ -38,11 +39,9 @@ pub const MSIX = struct {
     pub fn trigger(self: *Self) !void {
         const f: std.fs.File = .{
             .handle = self.eventfd,
-            .capable_io_mode = .blocking,
-            .intended_io_mode = .blocking,
         };
 
         const w = f.writer();
-        try w.writeIntNative(u64, 1);
+        try w.writeInt(u64, 1, native_endian);
     }
 };

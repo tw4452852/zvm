@@ -101,7 +101,7 @@ pub fn forwardStdin(line: []const u8) !void {
     mutex.lock();
     defer mutex.unlock();
     var sysrq = false;
-    var chars = line;
+    const chars = line;
 
     // ctrl+v as prefix
     if (mem.startsWith(u8, chars, "\x16")) {
