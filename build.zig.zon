@@ -16,8 +16,8 @@
     // internet connectivity.
     .dependencies = .{
         .libfdt = .{
-            .url = "https://github.com/tw4452852/libfdt/archive/refs/tags/1.7.0-1.tar.gz",
-            .hash = "12204f28e0d9f23c522ff983f697db84b49620522131a12efa4c0ce2189a13bccbe0",
+            .url = "https://github.com/tw4452852/libfdt/archive/refs/tags/1.7.0-2.tar.gz",
+            .hash = "1220478010a6ed8b8fc83d5a110589a724ec503c7322e709ac1195ab06b87e649264",
         },
     },
     .paths = .{

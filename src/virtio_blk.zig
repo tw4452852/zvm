@@ -15,7 +15,7 @@ var allocator: mem.Allocator = undefined;
 var disk_file_path: []const u8 = undefined;
 
 const use_packed = false;
-const transport = virtio_pci;
+const transport = virtio_mmio;
 
 pub fn init(alloc: std.mem.Allocator, path: []const u8) !void {
     const irq_line = irq.alloc();
@@ -54,26 +54,26 @@ fn blkio(dev: *transport.Dev, q: *virtio.Q) !void {
             var len: usize = 0;
             switch (t) {
                 virtio.c.VIRTIO_BLK_T_IN => {
-                    var iovecs = std.ArrayList(os.iovec).init(allocator);
+                    var iovecs = std.ArrayList(std.posix.iovec).init(allocator);
                     defer iovecs.deinit();
 
                     while (q.getNext(cur)) |next| {
-                        try iovecs.append(.{ .iov_base = ram.ptr + cur.desc.addr, .iov_len = cur.desc.len });
+                        try iovecs.append(.{ .base = ram.ptr + cur.desc.addr, .len = cur.desc.len });
                         cur = next;
                     }
                     len = try f.preadvAll(iovecs.items, off);
                 },
                 virtio.c.VIRTIO_BLK_T_OUT => {
-                    var iovecs = std.ArrayList(os.iovec_const).init(allocator);
+                    var iovecs = std.ArrayList(std.posix.iovec_const).init(allocator);
                     defer iovecs.deinit();
                     while (q.getNext(cur)) |next| {
-                        try iovecs.append(.{ .iov_base = ram.ptr + cur.desc.addr, .iov_len = cur.desc.len });
+                        try iovecs.append(.{ .base = ram.ptr + cur.desc.addr, .len = cur.desc.len });
                         len += cur.desc.len;
                         cur = next;
                     }
                     try f.pwritevAll(iovecs.items, off);
                 },
-                virtio.c.VIRTIO_BLK_T_FLUSH => try os.fsync(f.handle),
+                virtio.c.VIRTIO_BLK_T_FLUSH => try std.posix.fsync(f.handle),
                 else => unreachable,
             }
             // cur points to the status desc

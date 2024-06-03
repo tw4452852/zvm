@@ -56,16 +56,16 @@ fn interrupt_handler(_: c_int) callconv(.C) void {
     vfio.deinit();
 
     log.info("done", .{});
-    os.exit(0);
+    std.posix.exit(0);
 }
 
 fn setup_ctrl_c() !void {
-    const act = os.Sigaction{
+    const act = std.posix.Sigaction{
         .handler = .{ .handler = interrupt_handler },
-        .mask = os.empty_sigset,
+        .mask = std.posix.empty_sigset,
         .flags = 0,
     };
-    try os.sigaction(os.SIG.INT, &act, null);
+    try std.posix.sigaction(std.posix.SIG.INT, &act, null);
 }
 
 pub fn main() anyerror!void {

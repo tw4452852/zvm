@@ -44,7 +44,7 @@ pub const Q = struct {
 
     const Self = @This();
 
-    pub fn init(ver: InitVersion, size: u32, alignment: u32, features: u64, specified_page_size: ?u32, eventfd: os.fd_t) !Self {
+    pub fn init(ver: InitVersion, size: u32, alignment: u32, features: u64, specified_page_size: ?u32, eventfd: std.posix.fd_t) !Self {
         const use_packed = (features & (1 << c.VIRTIO_F_RING_PACKED)) != 0;
         const support_event_idx = (features & (1 << c.VIRTIO_RING_F_EVENT_IDX)) != 0;
 

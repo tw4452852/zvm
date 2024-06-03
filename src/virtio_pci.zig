@@ -263,7 +263,7 @@ pub const Dev = struct {
                 .Write => {
                     const enable = mem.readInt(u16, data[0..2], .little);
                     if (enable > 0) {
-                        const eventfd = try std.os.eventfd(0, 0);
+                        const eventfd = try std.posix.eventfd(0, 0);
                         kvm.addIOEventFd(self.pdev.bar_gpa(0) + @offsetOf(BAR0, "notify"), @sizeOf(@TypeOf(self.bar0.notify)), eventfd, i) catch {
                             self.not_support_ioeventfd = true;
                         };

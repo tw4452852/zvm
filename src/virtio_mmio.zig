@@ -93,71 +93,71 @@ pub const Dev = struct {
                 @memcpy(data.ptr, "virt");
             } else unreachable,
             c.VIRTIO_MMIO_VERSION => if (op == .Read) {
-                mem.writeIntLittle(u32, data[0..4], 2);
+                mem.writeInt(u32, data[0..4], 2, .little);
             } else unreachable,
             c.VIRTIO_MMIO_VENDOR_ID => if (op == .Read) {
-                mem.writeIntLittle(u32, data[0..4], 0x12345678);
+                mem.writeInt(u32, data[0..4], 0x12345678, .little);
             } else unreachable,
             c.VIRTIO_MMIO_DEVICE_ID => if (op == .Read) {
-                mem.writeIntLittle(i32, data[0..4], switch (self.kind) {
+                mem.writeInt(i32, data[0..4], switch (self.kind) {
                     .blk => virtio.c.VIRTIO_ID_BLOCK,
                     .net => virtio.c.VIRTIO_ID_NET,
-                });
+                }, .little);
             } else unreachable,
             c.VIRTIO_MMIO_STATUS => switch (op) {
-                .Read => mem.writeIntLittle(u32, data[0..4], self.status),
-                .Write => self.status = mem.readIntLittle(u32, data[0..4]),
+                .Read => mem.writeInt(u32, data[0..4], self.status, .little),
+                .Write => self.status = mem.readInt(u32, data[0..4], .little),
             },
             c.VIRTIO_MMIO_DEVICE_FEATURES_SEL => switch (op) {
                 .Read => unreachable,
-                .Write => self.feature_sel = mem.readIntLittle(u32, data[0..4]),
+                .Write => self.feature_sel = mem.readInt(u32, data[0..4], .little),
             },
             c.VIRTIO_MMIO_DEVICE_FEATURES => switch (op) {
-                .Read => mem.writeIntLittle(u32, data[0..4], if (self.feature_sel == 0) @as(u32, @truncate(self.device_features)) else @as(u32, @truncate(self.device_features >> 32))),
+                .Read => mem.writeInt(u32, data[0..4], if (self.feature_sel == 0) @as(u32, @truncate(self.device_features)) else @as(u32, @truncate(self.device_features >> 32)), .little),
                 .Write => unreachable,
             },
             c.VIRTIO_MMIO_DRIVER_FEATURES_SEL => switch (op) {
                 .Read => unreachable,
-                .Write => self.driver_feature_sel = mem.readIntLittle(u32, data[0..4]),
+                .Write => self.driver_feature_sel = mem.readInt(u32, data[0..4], .little),
             },
             c.VIRTIO_MMIO_GUEST_PAGE_SIZE => switch (op) {
                 .Read => unreachable,
-                .Write => self.q_page_sz = mem.readIntLittle(u32, data[0..4]),
+                .Write => self.q_page_sz = mem.readInt(u32, data[0..4], .little),
             },
             c.VIRTIO_MMIO_DRIVER_FEATURES => switch (op) {
                 .Read => unreachable,
                 .Write => switch (self.driver_feature_sel) {
-                    0 => self.driver_features |= mem.readIntLittle(u32, data[0..4]),
-                    1 => self.driver_features |= @as(u64, mem.readIntLittle(u32, data[0..4])) << 32,
+                    0 => self.driver_features |= mem.readInt(u32, data[0..4], .little),
+                    1 => self.driver_features |= @as(u64, mem.readInt(u32, data[0..4], .little)) << 32,
                     else => unreachable,
                 },
             },
             c.VIRTIO_MMIO_QUEUE_NUM_MAX => switch (op) {
-                .Read => mem.writeIntLittle(u32, data[0..4], 256),
+                .Read => mem.writeInt(u32, data[0..4], 256, .little),
                 .Write => unreachable,
             },
             c.VIRTIO_MMIO_QUEUE_SEL => switch (op) {
                 .Read => unreachable,
-                .Write => self.q_sel = mem.readIntLittle(u32, data[0..4]),
+                .Write => self.q_sel = mem.readInt(u32, data[0..4], .little),
             },
 
             c.VIRTIO_MMIO_QUEUE_NUM => switch (op) {
                 .Read => unreachable,
-                .Write => self.q_size = mem.readIntLittle(u32, data[0..4]),
+                .Write => self.q_size = mem.readInt(u32, data[0..4], .little),
             },
             c.VIRTIO_MMIO_QUEUE_ALIGN => switch (op) {
                 .Read => unreachable,
-                .Write => self.q_align = mem.readIntLittle(u32, data[0..4]),
+                .Write => self.q_align = mem.readInt(u32, data[0..4], .little),
             },
             c.VIRTIO_MMIO_QUEUE_PFN => switch (op) {
                 .Read => if (self.vqs[self.q_sel]) |q| {
-                    mem.writeIntLittle(u32, data[0..4], q.ring.split.pfn.?);
-                } else mem.writeInt(u32, data[0..4], 0, .Little),
+                    mem.writeInt(u32, data[0..4], q.ring.split.pfn.?, .little);
+                } else mem.writeInt(u32, data[0..4], 0, .little),
                 .Write => {
-                    const pfn = mem.readIntLittle(u32, data[0..4]);
+                    const pfn = mem.readInt(u32, data[0..4], .little);
                     if (pfn > 0) {
                         const i = self.q_sel;
-                        const eventfd = try std.os.eventfd(0, 0);
+                        const eventfd = try std.posix.eventfd(0, 0);
                         kvm.addIOEventFd(self.start + c.VIRTIO_MMIO_QUEUE_NOTIFY, 4, eventfd, i) catch {
                             self.not_support_ioeventfd = true;
                         };
@@ -173,18 +173,18 @@ pub const Dev = struct {
             c.VIRTIO_MMIO_QUEUE_NOTIFY => switch (op) {
                 .Read => unreachable,
                 .Write => if (self.not_support_ioeventfd) {
-                    const i = mem.readIntLittle(u32, data[0..4]);
+                    const i = mem.readInt(u32, data[0..4], .little);
                     try self.vqs[i].?.notifyAvail();
                 } else unreachable,
             },
             c.VIRTIO_MMIO_INTERRUPT_STATUS => switch (op) {
-                .Read => mem.writeIntLittle(u32, data[0..4], self.irq_status),
+                .Read => mem.writeInt(u32, data[0..4], self.irq_status, .little),
                 .Write => unreachable,
             },
             c.VIRTIO_MMIO_INTERRUPT_ACK => switch (op) {
                 .Read => unreachable,
                 .Write => {
-                    self.irq_status &= ~(mem.readIntLittle(u32, data[0..4]));
+                    self.irq_status &= ~(mem.readInt(u32, data[0..4], .little));
                     try self.update_irq();
                 },
             },
@@ -192,53 +192,53 @@ pub const Dev = struct {
                 .Read => unreachable,
                 .Write => {
                     self.descs_addr &= 0xffffffff_00000000;
-                    self.descs_addr |= mem.readIntLittle(u32, data[0..4]);
+                    self.descs_addr |= mem.readInt(u32, data[0..4], .little);
                 },
             },
             c.VIRTIO_MMIO_QUEUE_DESC_HIGH => switch (op) {
                 .Read => unreachable,
                 .Write => {
                     self.descs_addr &= 0x00000000_ffffffff;
-                    self.descs_addr |= (@as(u64, mem.readIntLittle(u32, data[0..4])) << 32);
+                    self.descs_addr |= (@as(u64, mem.readInt(u32, data[0..4], .little)) << 32);
                 },
             },
             c.VIRTIO_MMIO_QUEUE_AVAIL_LOW => switch (op) {
                 .Read => unreachable,
                 .Write => {
                     self.avail_addr &= 0xffffffff_00000000;
-                    self.avail_addr |= mem.readIntLittle(u32, data[0..4]);
+                    self.avail_addr |= mem.readInt(u32, data[0..4], .little);
                 },
             },
             c.VIRTIO_MMIO_QUEUE_AVAIL_HIGH => switch (op) {
                 .Read => unreachable,
                 .Write => {
                     self.avail_addr &= 0x00000000_ffffffff;
-                    self.avail_addr |= (@as(u64, mem.readIntLittle(u32, data[0..4])) << 32);
+                    self.avail_addr |= (@as(u64, mem.readInt(u32, data[0..4], .little)) << 32);
                 },
             },
             c.VIRTIO_MMIO_QUEUE_USED_LOW => switch (op) {
                 .Read => unreachable,
                 .Write => {
                     self.used_addr &= 0xffffffff_00000000;
-                    self.used_addr |= mem.readIntLittle(u32, data[0..4]);
+                    self.used_addr |= mem.readInt(u32, data[0..4], .little);
                 },
             },
             c.VIRTIO_MMIO_QUEUE_USED_HIGH => switch (op) {
                 .Read => unreachable,
                 .Write => {
                     self.used_addr &= 0x00000000_ffffffff;
-                    self.used_addr |= (@as(u64, mem.readIntLittle(u32, data[0..4])) << 32);
+                    self.used_addr |= (@as(u64, mem.readInt(u32, data[0..4], .little)) << 32);
                 },
             },
             c.VIRTIO_MMIO_QUEUE_READY => switch (op) {
                 .Read => if (self.vqs[self.q_sel]) |q| {
-                    mem.writeIntLittle(u32, data[0..4], @intFromBool(q.ring.pack.ready));
-                } else mem.writeInt(u32, data[0..4], 0, .Little),
+                    mem.writeInt(u32, data[0..4], @intFromBool(q.ring.pack.ready), .little);
+                } else mem.writeInt(u32, data[0..4], 0, .little),
                 .Write => {
-                    const ready = mem.readIntLittle(u32, data[0..4]);
+                    const ready = mem.readInt(u32, data[0..4], .little);
                     if (ready > 0) {
                         const i = self.q_sel;
-                        const eventfd = try std.os.eventfd(0, 0);
+                        const eventfd = try std.posix.eventfd(0, 0);
                         kvm.addIOEventFd(self.start + c.VIRTIO_MMIO_QUEUE_NOTIFY, 4, eventfd, i) catch {
                             self.not_support_ioeventfd = true;
                         };
@@ -255,7 +255,7 @@ pub const Dev = struct {
                 },
             },
             c.VIRTIO_MMIO_CONFIG_GENERATION => switch (op) {
-                .Read => mem.writeIntLittle(u32, data[0..4], 0), // TODO: support version generation
+                .Read => mem.writeInt(u32, data[0..4], 0, .little), // TODO: support version generation
                 .Write => unreachable,
             },
 

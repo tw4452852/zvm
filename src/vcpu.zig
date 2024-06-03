@@ -16,7 +16,7 @@ const mem = std.mem;
 
 pub fn createAndStartCpus(num_cores: usize) !void {
     var buf: [16]u8 = undefined;
-    var cpus: [root.MAX_CPUS]os.fd_t = undefined;
+    var cpus: [root.MAX_CPUS]std.posix.fd_t = undefined;
     var handle0: Thread = undefined;
     assert(num_cores < root.MAX_CPUS);
 
@@ -28,8 +28,8 @@ pub fn createAndStartCpus(num_cores: usize) !void {
         if (root.enable_debug) {
             const debug = mem.zeroInit(c.kvm_guest_debug, .{ .control = c.KVM_GUESTDBG_ENABLE | c.KVM_GUESTDBG_SINGLESTEP });
             const ret = ioctl(vcpu, c.KVM_SET_GUEST_DEBUG, @intFromPtr(&debug));
-            if (os.linux.getErrno(ret) != .SUCCESS) {
-                log.err("failed to enable debug: {}", .{os.linux.getErrno(ret)});
+            if (os.linux.E.init(ret) != .SUCCESS) {
+                log.err("failed to enable debug: {}", .{os.linux.E.init(ret)});
                 return error.CREATE_CPU;
             }
             log.info("enable debug", .{});
@@ -48,13 +48,13 @@ pub fn createAndStartCpus(num_cores: usize) !void {
     handle0.join();
 }
 
-fn runVCPU(vcpu: os.fd_t) !void {
+fn runVCPU(vcpu: std.posix.fd_t) !void {
     const run_ptr = try kvm.getRun(vcpu);
     const run: *c.kvm_run = @ptrCast(run_ptr.ptr);
 
     while (true) {
         const ret = ioctl(vcpu, c.KVM_RUN, 0);
-        const errno = os.linux.getErrno(ret);
+        const errno = os.linux.E.init(ret);
         if (errno != .SUCCESS) {
             log.err("failed to run vcpu: {}", .{errno});
             if (errno == .INTR or errno == .AGAIN) continue;

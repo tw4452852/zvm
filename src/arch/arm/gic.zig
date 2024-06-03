@@ -26,11 +26,11 @@ pub const irq_level_low = 8;
 
 pub const irq_spi_base = 32;
 
-pub fn create(dts: ?*anyopaque, num_cores: usize) !os.fd_t {
+pub fn create(dts: ?*anyopaque, num_cores: usize) !std.posix.fd_t {
     return create_gicv3(dts, num_cores) catch try create_gicv2(dts);
 }
 
-fn create_gicv2(dts: ?*anyopaque) !os.fd_t {
+fn create_gicv2(dts: ?*anyopaque) !std.posix.fd_t {
     const vm = kvm.getVM();
     const gic_dist_size = 0x10000;
     const gic_dist_base = mmio.alloc_space(gic_dist_size);
@@ -44,7 +44,7 @@ fn create_gicv2(dts: ?*anyopaque) !os.fd_t {
         .fd = 0,
     };
     try check(ioctl(vm, c.KVM_CREATE_DEVICE, @intFromPtr(&dev)));
-    errdefer os.close(@intCast(dev.fd));
+    errdefer std.posix.close(@intCast(dev.fd));
 
     const cpu = c.kvm_device_attr{
         .group = c.KVM_DEV_ARM_VGIC_GRP_ADDR,
@@ -101,7 +101,7 @@ fn create_gicv2(dts: ?*anyopaque) !os.fd_t {
     return @intCast(dev.fd);
 }
 
-fn create_gicv3(dts: ?*anyopaque, num_cores: usize) !os.fd_t {
+fn create_gicv3(dts: ?*anyopaque, num_cores: usize) !std.posix.fd_t {
     const vm = kvm.getVM();
     const gic_dist_size = 0x10000;
     const gic_dist_base = mmio.alloc_space(gic_dist_size);
@@ -115,7 +115,7 @@ fn create_gicv3(dts: ?*anyopaque, num_cores: usize) !os.fd_t {
         .fd = 0,
     };
     try check(ioctl(vm, c.KVM_CREATE_DEVICE, @intFromPtr(&dev)));
-    errdefer os.close(@intCast(dev.fd));
+    errdefer std.posix.close(@intCast(dev.fd));
 
     const redist = c.kvm_device_attr{
         .group = c.KVM_DEV_ARM_VGIC_GRP_ADDR,

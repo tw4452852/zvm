@@ -96,8 +96,8 @@ fn create_tap() !void {
     try check(ioctl(tap_f.?.handle, c.TUNSETVNETHDRSZ, @intFromPtr(&hdr_len)));
 
     const ipaddr = try std.net.Address.parseIp4("192.168.66.1", 0);
-    const sock = try os.socket(ipaddr.any.family, os.SOCK.DGRAM, 0);
-    defer os.close(sock);
+    const sock = try std.posix.socket(ipaddr.any.family, std.posix.SOCK.DGRAM, 0);
+    defer std.posix.close(sock);
 
     // set ip addr
     ifr.ifr_ifru.ifru_addr.sa_family = ipaddr.any.family;
@@ -143,7 +143,7 @@ fn init_queue(dev: *transport.Dev, q: *virtio.Q) !void {
                     };
                     try check(ioctl(vhost_f.?.handle, virtio.c.VHOST_SET_VRING_KICK, @intFromPtr(&file)));
 
-                    const eventfd = try std.os.eventfd(0, 0);
+                    const eventfd = try std.posix.eventfd(0, 0);
 
                     if (dev.get_msix_irq(q)) |msix_irq| {
                         try kvm.addIrqFd(irq.gsi(msix_irq), eventfd, null);
@@ -170,7 +170,7 @@ fn init_queue(dev: *transport.Dev, q: *virtio.Q) !void {
     } else unreachable;
 }
 
-fn call_poll(dev: *transport.Dev, eventfd: os.fd_t, vq: *const virtio.Q) !void {
+fn call_poll(dev: *transport.Dev, eventfd: std.posix.fd_t, vq: *const virtio.Q) !void {
     const f: fs.File = .{
         .handle = eventfd,
     };

@@ -5,13 +5,13 @@ const fs = std.fs;
 const os = std.os;
 
 var tty: fs.File = undefined;
-var original_termios: os.termios = undefined;
+var original_termios: std.posix.termios = undefined;
 var handle: std.Thread = undefined;
 var stop = false;
 
 pub fn startCapture() !void {
     tty = try fs.cwd().openFile("/dev/tty", .{ .mode = .read_write });
-    original_termios = try os.tcgetattr(tty.handle);
+    original_termios = try std.posix.tcgetattr(tty.handle);
 
     var raw = original_termios;
     raw.lflag.ECHO = false;
@@ -19,14 +19,14 @@ pub fn startCapture() !void {
 
     raw.cc[@intFromEnum(os.linux.V.TIME)] = 1;
     raw.cc[@intFromEnum(os.linux.V.MIN)] = 1;
-    try os.tcsetattr(tty.handle, .FLUSH, raw);
+    try std.posix.tcsetattr(tty.handle, .FLUSH, raw);
 
     handle = try Thread.spawn(.{}, captureStdin, .{tty});
 }
 
 pub fn stopCapture() void {
     stop = true;
-    os.tcsetattr(tty.handle, .FLUSH, original_termios) catch unreachable;
+    std.posix.tcsetattr(tty.handle, .FLUSH, original_termios) catch unreachable;
     handle.join();
     tty.close();
 }

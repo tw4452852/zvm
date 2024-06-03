@@ -20,14 +20,14 @@ pub fn init_vm(num_cores: usize) !void {
 
     const pit_config = mem.zeroes(c.kvm_pit_config);
     var ret = ioctl(vm, c.KVM_CREATE_PIT2, @intFromPtr(&pit_config));
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to create pit: {}", .{os.errno(ret)});
+    if (std.posix.errno(ret) != .SUCCESS) {
+        log.err("failed to create pit: {}", .{std.posix.errno(ret)});
         return error.CREAT_PIT;
     }
 
     ret = ioctl(vm, c.KVM_CREATE_IRQCHIP, 0);
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to create irqchip: {}", .{os.errno(ret)});
+    if (std.posix.errno(ret) != .SUCCESS) {
+        log.err("failed to create irqchip: {}", .{std.posix.errno(ret)});
         return error.CREAT_IRQCHIP;
     }
 
@@ -134,7 +134,7 @@ pub fn load_kernel(kernel_path: []const u8, cmd: *root.Cmdline, initrd_path: ?[]
     defer f.close();
 
     const fsize = (try f.stat()).size;
-    const data = try os.mmap(null, fsize, c.PROT_READ, .{ .TYPE = .PRIVATE }, f.handle, 0);
+    const data = try std.posix.mmap(null, fsize, c.PROT_READ, .{ .TYPE = .PRIVATE }, f.handle, 0);
 
     // get the header first
     var hdr: *bootparam.setup_header = @ptrCast(data.ptr + 0x1f1);
@@ -188,7 +188,7 @@ pub fn load_kernel(kernel_path: []const u8, cmd: *root.Cmdline, initrd_path: ?[]
         defer initrd_f.close();
 
         const initrd_size = (try initrd_f.stat()).size;
-        const initrd_data = try os.mmap(null, initrd_size, c.PROT_READ, .{ .TYPE = .PRIVATE }, initrd_f.handle, 0);
+        const initrd_data = try std.posix.mmap(null, initrd_size, c.PROT_READ, .{ .TYPE = .PRIVATE }, initrd_f.handle, 0);
 
         var initrd_addr = @min(hdr.initrd_addr_max, ram.len);
         const kernel_end = kernel_addr + kernel_size;
@@ -263,17 +263,17 @@ fn prepare_e820(e820_table: [*]bootparam.boot_e820_entry, table_size: *u8, mem_s
     table_size.* = i;
 }
 
-pub fn init_vcpu(vcpu: os.fd_t, i: usize) !void {
+pub fn init_vcpu(vcpu: std.posix.fd_t, i: usize) !void {
     try setup_lapic(vcpu);
     try setup_cpuid(vcpu, i);
     try setup_regs(vcpu);
 }
 
-fn setup_lapic(vcpu: os.fd_t) !void {
+fn setup_lapic(vcpu: std.posix.fd_t) !void {
     var state: c.kvm_lapic_state = undefined;
     var ret = ioctl(vcpu, c.KVM_GET_LAPIC, @intFromPtr(&state));
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to get lapic state: {}", .{os.errno(ret)});
+    if (std.posix.errno(ret) != .SUCCESS) {
+        log.err("failed to get lapic state: {}", .{std.posix.errno(ret)});
         return error.LAPIC;
     }
 
@@ -291,13 +291,13 @@ fn setup_lapic(vcpu: os.fd_t) !void {
     lint1.* |= APIC_MODE_NMI << 8;
 
     ret = ioctl(vcpu, c.KVM_SET_LAPIC, @intFromPtr(&state));
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to set lapic state: {}", .{os.errno(ret)});
+    if (std.posix.errno(ret) != .SUCCESS) {
+        log.err("failed to set lapic state: {}", .{std.posix.errno(ret)});
         return error.LAPIC;
     }
 }
 
-fn setup_cpuid(vcpu: os.fd_t, i: usize) !void {
+fn setup_cpuid(vcpu: std.posix.fd_t, i: usize) !void {
     const CPUID = struct {
         fn fix(cpuid: usize, entry: *c.kvm_cpuid_entry2) void {
             switch (entry.function) {
@@ -317,12 +317,12 @@ fn setup_cpuid(vcpu: os.fd_t, i: usize) !void {
     return kvm.fixCpuids(vcpu, i, CPUID.fix);
 }
 
-fn setup_regs(vcpu: os.fd_t) !void {
+fn setup_regs(vcpu: std.posix.fd_t) !void {
     // setup selector regs
     var sregs: c.kvm_sregs = undefined;
     var ret = ioctl(vcpu, c.KVM_GET_SREGS, @intFromPtr(&sregs));
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to get sregs: {}", .{os.errno(ret)});
+    if (std.posix.errno(ret) != .SUCCESS) {
+        log.err("failed to get sregs: {}", .{std.posix.errno(ret)});
         return error.REGS;
     }
 
@@ -349,16 +349,16 @@ fn setup_regs(vcpu: os.fd_t) !void {
     sregs.ss.db = 1;
     sregs.cr0 |= 1; // enable protected mode
     ret = ioctl(vcpu, c.KVM_SET_SREGS, @intFromPtr(&sregs));
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to set sregs: {}", .{os.errno(ret)});
+    if (std.posix.errno(ret) != .SUCCESS) {
+        log.err("failed to set sregs: {}", .{std.posix.errno(ret)});
         return error.REGS;
     }
 
     // setup general regs
     var regs: c.kvm_regs = undefined;
     ret = ioctl(vcpu, c.KVM_GET_REGS, @intFromPtr(&regs));
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to get regs: {}", .{os.errno(ret)});
+    if (std.posix.errno(ret) != .SUCCESS) {
+        log.err("failed to get regs: {}", .{std.posix.errno(ret)});
         return error.REGS;
     }
 
@@ -366,8 +366,8 @@ fn setup_regs(vcpu: os.fd_t) !void {
     regs.rsi = 0x10000; // the location of boot_param
 
     ret = ioctl(vcpu, c.KVM_SET_REGS, @intFromPtr(&regs));
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to set regs: {}", .{os.errno(ret)});
+    if (std.posix.errno(ret) != .SUCCESS) {
+        log.err("failed to set regs: {}", .{std.posix.errno(ret)});
         return error.REGS;
     }
 }
@@ -375,14 +375,14 @@ fn setup_regs(vcpu: os.fd_t) !void {
 var history_ins: [20]u64 = undefined;
 var pos: u64 = 0;
 
-pub fn record_ins(vcpu: os.fd_t, p: ?*const c.kvm_debug_exit_arch) !void {
+pub fn record_ins(vcpu: std.posix.fd_t, p: ?*const c.kvm_debug_exit_arch) !void {
     const rip = if (p) |ctx|
         ctx.pc
     else blk: {
         var regs: c.kvm_regs = undefined;
         const ret = ioctl(vcpu, c.KVM_GET_REGS, @intFromPtr(&regs));
-        if (os.errno(ret) != .SUCCESS) {
-            log.err("failed to get regs: {}", .{os.errno(ret)});
+        if (std.posix.errno(ret) != .SUCCESS) {
+            log.err("failed to get regs: {}", .{std.posix.errno(ret)});
             return error.REGS;
         }
         break :blk regs.rip;
@@ -392,18 +392,18 @@ pub fn record_ins(vcpu: os.fd_t, p: ?*const c.kvm_debug_exit_arch) !void {
     pos += 1;
 }
 
-pub fn dump_vcpu(vcpu: os.fd_t) !void {
+pub fn dump_vcpu(vcpu: std.posix.fd_t) !void {
     const ram = kvm.getMem();
     var sregs: c.kvm_sregs = undefined;
     var ret = ioctl(vcpu, c.KVM_GET_SREGS, @intFromPtr(&sregs));
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to get sregs: {}", .{os.errno(ret)});
+    if (std.posix.errno(ret) != .SUCCESS) {
+        log.err("failed to get sregs: {}", .{std.posix.errno(ret)});
         return error.REGS;
     }
     var regs: c.kvm_regs = undefined;
     ret = ioctl(vcpu, c.KVM_GET_REGS, @intFromPtr(&regs));
-    if (os.errno(ret) != .SUCCESS) {
-        log.err("failed to get regs: {}", .{os.errno(ret)});
+    if (std.posix.errno(ret) != .SUCCESS) {
+        log.err("failed to get regs: {}", .{std.posix.errno(ret)});
         return error.REGS;
     }
 

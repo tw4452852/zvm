@@ -21,7 +21,7 @@ const fmt = std.fmt;
 var dts: [0x10000]u8 = undefined;
 var kernel_addr: u64 = 0x80_000;
 var dtb_addr: u64 = undefined;
-var gic_fd: os.fd_t = undefined;
+var gic_fd: std.posix.fd_t = undefined;
 var num_cpus: usize = undefined;
 
 pub const start_irq = 32;
@@ -112,7 +112,7 @@ pub fn load_kernel(kernel_path: []const u8, cmd: *const root.Cmdline, initrd_pat
     defer f.close();
 
     const fsize = (try f.stat()).size;
-    const data = try os.mmap(null, fsize, c.PROT_READ, .{ .TYPE = .PRIVATE }, f.handle, 0);
+    const data = try std.posix.mmap(null, fsize, c.PROT_READ, .{ .TYPE = .PRIVATE }, f.handle, 0);
 
     // get load offset
     const HEADER = struct {
@@ -203,10 +203,10 @@ pub fn load_kernel(kernel_path: []const u8, cmd: *const root.Cmdline, initrd_pat
     try check(libfdt.fdt_pack(ram.ptr + dtb_addr));
     log.info("load dtb to 0x{x}", .{dtb_addr});
 
-    try std.fs.cwd().writeFile("dtb", (ram.ptr + dtb_addr)[0..max_dtb_size]);
+    try std.fs.cwd().writeFile(.{ .sub_path = "dtb", .data = (ram.ptr + dtb_addr)[0..max_dtb_size] });
 }
 
-pub fn init_vcpu(vcpu: os.fd_t, i: usize) !void {
+pub fn init_vcpu(vcpu: std.posix.fd_t, i: usize) !void {
     var data: u64 = undefined;
     var vcpu_init = mem.zeroInit(c.kvm_vcpu_init, .{
         .target = c.KVM_ARM_TARGET_GENERIC_V8,
@@ -249,11 +249,11 @@ pub fn init_vcpu(vcpu: os.fd_t, i: usize) !void {
     }
 }
 
-pub fn dump_vcpu(_: os.fd_t) !void {
+pub fn dump_vcpu(_: std.posix.fd_t) !void {
     @panic("todo");
 }
 
-pub fn record_ins(vcpu: os.fd_t, arch: ?*const c.kvm_debug_exit_arch) !void {
+pub fn record_ins(vcpu: std.posix.fd_t, arch: ?*const c.kvm_debug_exit_arch) !void {
     if (arch) |_| {
         // get pc
         var pc: u64 = undefined;
@@ -274,8 +274,8 @@ pub fn setIrqLevelInner(irq: u32, level: u1) !void {
 
     const ret = ioctl(vm, c.KVM_IRQ_LINE, @intFromPtr(&irq_level));
     //log.info("tw; set irq{}, level = {}", .{ irq_level.unnamed_0.irq, irq_level.level });
-    if (os.linux.getErrno(ret) != .SUCCESS) {
-        log.err("failed to set irq{}, level{}: {}", .{ irq, level, os.linux.getErrno(ret) });
+    if (os.linux.E.init(ret) != .SUCCESS) {
+        log.err("failed to set irq{}, level{}: {}", .{ irq, level, os.linux.E.init(ret) });
         return error.IRQ;
     }
 }

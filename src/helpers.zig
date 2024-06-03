@@ -4,7 +4,7 @@ const print = std.debug.print;
 pub fn check_non_zero(ret: anytype) !void {
     if (ret != 0) {
         switch (@TypeOf(ret)) {
-            usize => print("ret: {} {}\n", .{ @as(isize, @bitCast(ret)), std.os.linux.getErrno(ret) }),
+            usize => print("ret: {} {}\n", .{ @as(isize, @bitCast(ret)), std.os.linux.E.init(ret) }),
             else => print("ret: {}\n", .{ret}),
         }
         return error.RET_NON_ZERO;

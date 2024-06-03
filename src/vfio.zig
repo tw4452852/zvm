@@ -9,7 +9,7 @@ const mem = std.mem;
 const fs = std.fs;
 const fmt = std.fmt;
 
-var container_fd: os.fd_t = undefined;
+var container_fd: std.posix.fd_t = undefined;
 
 const IOMMUType = enum(u8) {
     type1 = 1,
@@ -23,7 +23,7 @@ const IOMMUType = enum(u8) {
 const Group = struct {
     const Self = @This();
 
-    fd: os.fd_t,
+    fd: std.posix.fd_t,
     id: usize,
 
     pub fn init(id: usize) !Self {
@@ -50,12 +50,12 @@ const Group = struct {
         };
     }
 
-    pub fn attach_container(self: *const Self, container: os.fd_t) !void {
+    pub fn attach_container(self: *const Self, container: std.posix.fd_t) !void {
         try check(ioctl(self.fd, c.VFIO_GROUP_SET_CONTAINER, @intFromPtr(&container)));
     }
 
     pub fn deinit(self: *Self) void {
-        os.close(self.fd);
+        std.posix.close(self.fd);
         self.* = undefined;
     }
 };
@@ -86,17 +86,20 @@ const Dev = struct {
         // replace driver with vfio-*
         var buf: [128]u8 = undefined;
         const driver_override = try fmt.bufPrint(&buf, "/sys/bus/{s}/devices/{s}/driver_override", .{ @tagName(bus), name });
-        try fs.cwd().writeFile(driver_override, switch (bus) {
-            .pci => "vfio-pci",
-            .platform => "vfio-platform",
+        try fs.cwd().writeFile(.{
+            .sub_path = driver_override,
+            .data = switch (bus) {
+                .pci => "vfio-pci",
+                .platform => "vfio-platform",
+            },
         });
         const unbind = try fmt.bufPrint(&buf, "/sys/bus/{s}/devices/{s}/driver/unbind", .{ @tagName(bus), name });
-        fs.cwd().writeFile(unbind, name) catch |err| switch (err) {
+        fs.cwd().writeFile(.{ .sub_path = unbind, .data = name }) catch |err| switch (err) {
             std.fs.File.OpenError.FileNotFound => {},
             else => return err,
         };
         const drivers_probe = try fmt.bufPrint(&buf, "/sys/bus/{s}/drivers_probe", .{@tagName(bus)});
-        try fs.cwd().writeFile(drivers_probe, name);
+        try fs.cwd().writeFile(.{ .sub_path = drivers_probe, .data = name });
 
         const group_id = try get_iommu_group_id(bus, name);
         var ret: Self = .{
@@ -117,7 +120,7 @@ const Dev = struct {
     fn get_iommu_group_id(bus: BusType, name: []const u8) !usize {
         var buf: [128]u8 = undefined;
         const iommu_group_link = try fmt.bufPrint(&buf, "/sys/bus/{s}/devices/{s}/iommu_group", .{ @tagName(bus), name });
-        const link_target = try os.readlink(iommu_group_link, &buf);
+        const link_target = try std.posix.readlink(iommu_group_link, &buf);
         const s = fs.path.basename(link_target);
 
         return try fmt.parseInt(usize, s, 10);
@@ -127,11 +130,11 @@ const Dev = struct {
         // restore default driver
         var buf: [128]u8 = undefined;
         const driver_override = fmt.bufPrint(&buf, "/sys/bus/{s}/devices/{s}/driver_override", .{ @tagName(self.bus), self.name }) catch unreachable;
-        fs.cwd().writeFile(driver_override, "\n") catch unreachable;
+        fs.cwd().writeFile(.{ .sub_path = driver_override, .data = "\n" }) catch unreachable;
         const unbind = fmt.bufPrint(&buf, "/sys/bus/{s}/devices/{s}/driver/unbind", .{ @tagName(self.bus), self.name }) catch unreachable;
-        fs.cwd().writeFile(unbind, self.name) catch unreachable;
+        fs.cwd().writeFile(.{ .sub_path = unbind, .data = self.name }) catch unreachable;
         const drivers_probe = fmt.bufPrint(&buf, "/sys/bus/{s}/drivers_probe", .{@tagName(self.bus)}) catch unreachable;
-        fs.cwd().writeFile(drivers_probe, self.name) catch unreachable;
+        fs.cwd().writeFile(.{ .sub_path = drivers_probe, .data = self.name }) catch unreachable;
 
         self.* = undefined;
     }
@@ -216,7 +219,7 @@ fn setup_container_iommu_mapping(allocator: std.mem.Allocator) !void {
 }
 
 fn try_load_module(allocator: std.mem.Allocator, args: []const []const u8) void {
-    const res = std.ChildProcess.run(.{
+    const res = std.process.Child.run(.{
         .allocator = allocator,
         .argv = args,
     }) catch |err| {
@@ -258,7 +261,7 @@ fn init_container() !void {
     container_fd = f.handle;
 }
 
-fn get_iommu_type(container: os.fd_t) IOMMUType {
+fn get_iommu_type(container: std.posix.fd_t) IOMMUType {
     if (ioctl(container, c.VFIO_CHECK_EXTENSION, c.VFIO_TYPE1v2_IOMMU) > 0) return .type1v2;
     if (ioctl(container, c.VFIO_CHECK_EXTENSION, c.VFIO_TYPE1_IOMMU) > 0) return .type1;
 
@@ -274,5 +277,5 @@ pub fn deinit() void {
     for (devs[0..dev_count]) |*dev| {
         dev.deinit();
     }
-    os.close(container_fd);
+    std.posix.close(container_fd);
 }

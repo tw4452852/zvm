@@ -20,10 +20,10 @@ pub fn gsi(irq: u32) u32 {
 pub const MSIX = struct {
     const Self = @This();
     irq: u32,
-    eventfd: os.fd_t,
+    eventfd: std.posix.fd_t,
 
     pub fn init(irq: u32) !Self {
-        const fd = try os.eventfd(0, 0);
+        const fd = try std.posix.eventfd(0, 0);
         try kvm.addIrqFd(gsi(irq), fd, null);
 
         return .{
@@ -33,7 +33,7 @@ pub const MSIX = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        os.close(self.eventfd);
+        std.posix.close(self.eventfd);
     }
 
     pub fn trigger(self: *Self) !void {
