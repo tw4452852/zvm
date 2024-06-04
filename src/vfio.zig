@@ -187,14 +187,17 @@ fn setup_container_iommu_mapping(allocator: std.mem.Allocator) !void {
     try check(ioctl(container_fd, c.VFIO_IOMMU_GET_INFO, @intFromPtr(info)));
 
     if (info.flags & c.VFIO_IOMMU_INFO_PGSIZES != 0) {
-        std.log.info("iommu pagesize: 0x{x}", .{info.iova_pgsizes});
+        std.log.info("iommu pagesizes: 0x{x}", .{info.iova_pgsizes});
     } else std.log.info("can't find iommu page size", .{});
 
     if (info.argsz > @sizeOf(c.vfio_iommu_type1_info)) {
-        info = @ptrCast(try allocator.realloc(mem.asBytes(info), info.argsz));
-        try check(ioctl(container_fd, c.VFIO_IOMMU_GET_INFO, @intFromPtr(info)));
+        var info_ext = try allocator.alloc(u8, info.argsz);
+        defer allocator.free(info_ext);
+        @memcpy(info_ext[0..@sizeOf(c.vfio_iommu_type1_info)], mem.asBytes(info));
+        try check(ioctl(container_fd, c.VFIO_IOMMU_GET_INFO, @intFromPtr(info_ext.ptr)));
+        const offset = mem.bytesAsValue(u32, info_ext[@offsetOf(c.vfio_iommu_type1_info, "cap_offset")..][0..4]).*;
 
-        var cap: *const c.vfio_info_cap_header = @alignCast(@ptrCast(mem.asBytes(info)[info.cap_offset..][0..@sizeOf(c.vfio_info_cap_header)]));
+        var cap: *const c.vfio_info_cap_header = @alignCast(@ptrCast(info_ext[offset..][0..@sizeOf(c.vfio_info_cap_header)]));
 
         while (true) {
             switch (cap.id) {
@@ -213,7 +216,7 @@ fn setup_container_iommu_mapping(allocator: std.mem.Allocator) !void {
             }
 
             if (cap.next == 0) break;
-            cap = @alignCast(@ptrCast(mem.asBytes(info)[cap.next..][0..@sizeOf(c.vfio_info_cap_header)]));
+            cap = @alignCast(@ptrCast(info_ext[cap.next..][0..@sizeOf(c.vfio_info_cap_header)]));
         }
     }
 }
