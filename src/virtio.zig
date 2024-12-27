@@ -163,7 +163,7 @@ const SplitQ = struct {
         switch (ver) {
             .v1 => |args| {
                 pfn = args.pfn;
-                const offset = args.pfn * if (specified_page_size) |page_sz| page_sz else mem.page_size;
+                const offset = args.pfn * if (specified_page_size) |page_sz| page_sz else std.heap.page_size_min;
                 c.vring_init(&ring, size, ram.ptr + offset, alignment);
             },
             .v2 => |args| {

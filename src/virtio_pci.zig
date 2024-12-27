@@ -273,7 +273,7 @@ pub const Dev = struct {
                             .descs_addr = self.vq_properties[i].descs,
                             .avail_addr = self.vq_properties[i].avail,
                             .used_addr = self.vq_properties[i].used,
-                        } }, self.vq_properties[i].size, 0, self.driver_features, mem.page_size, eventfd);
+                        } }, self.vq_properties[i].size, 0, self.driver_features, std.heap.page_size_min, eventfd);
                         self.vqs[i] = q;
                         try self.init_queue_proc(self, &self.vqs[i].?);
                     } else {
