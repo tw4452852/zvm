@@ -18,6 +18,7 @@
         .libfdt = .{
             .url = "https://github.com/tw4452852/libfdt/archive/refs/tags/1.7.0-2.tar.gz",
             .hash = "1220478010a6ed8b8fc83d5a110589a724ec503c7322e709ac1195ab06b87e649264",
+            .lazy = true,
         },
     },
     .paths = .{

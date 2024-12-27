@@ -14,13 +14,13 @@ pub fn build(b: *std.Build) void {
     exe.linkLibC();
 
     const arch = target.result.cpu.arch;
-    if (arch.isARM() or arch.isAARCH64()) {
-        const libfdt = b.dependency("libfdt", .{
+    if (arch.isArm() or arch.isAARCH64()) {
+        if (b.lazyDependency("libfdt", .{
             .target = target,
             .optimize = optimize,
-        }).artifact("libfdt");
-
-        exe.linkLibrary(libfdt);
+        })) |d| {
+            exe.linkLibrary(d.artifact("libfdt"));
+        }
     }
 
     b.installArtifact(exe);

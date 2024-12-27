@@ -27,6 +27,15 @@ pub const Dev = struct {
         pba: [max_queue_num + 1]u1,
     };
 
+    const VQProperty = struct {
+        size: u16,
+        descs: u64,
+        avail: u64,
+        used: u64,
+        msix_idx: ?usize,
+        msix: ?MSIX,
+    };
+
     irq: u32,
     device_feature: u64 = 0,
     driver_features: u64 = 0,
@@ -36,14 +45,7 @@ pub const Dev = struct {
     bar0: BAR0,
     bar1: BAR1,
     vqs: [max_queue_num]?virtio.Q = .{null} ** max_queue_num,
-    vq_properties: [max_queue_num]struct {
-        size: u16,
-        descs: u64,
-        avail: u64,
-        used: u64,
-        msix_idx: ?usize,
-        msix: ?MSIX,
-    } = .{.{ .size = 0, .descs = 0, .avail = 0, .used = 0, .msix_idx = null, .msix = null }} ** max_queue_num,
+    vq_properties: [max_queue_num]VQProperty = .{VQProperty{ .size = 0, .descs = 0, .avail = 0, .used = 0, .msix_idx = null, .msix = null }} ** max_queue_num,
     not_support_ioeventfd: bool = false,
     global_msix_ctrl: *u16,
 
