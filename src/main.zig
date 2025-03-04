@@ -44,7 +44,7 @@ fn usage() !void {
         \\ -c [number of core]
         \\ -debug
         \\ -n # enable virtio-net
-        \\ -p [path to pci device in sysfs, e.g. /sys/bus/pci/0000:00:01.0/]
+        \\ -p [path to passthrough device in sysfs, e.g. /sys/bus/platform/0000:00:01.0/]
     , .{});
     return error.USAGE;
 }

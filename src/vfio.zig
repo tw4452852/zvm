@@ -81,7 +81,7 @@ const Dev = struct {
         try std.testing.expectEqualStrings("bus", iter.next().?.name);
         const bus = std.meta.stringToEnum(BusType, iter.next().?.name).?;
         try std.testing.expectEqualStrings("devices", iter.next().?.name);
-        const name = iter.next().?.name;
+        const name = iter.last().?.name;
 
         // replace driver with vfio-*
         var buf: [128]u8 = undefined;
